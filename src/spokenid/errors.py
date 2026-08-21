@@ -1,12 +1,18 @@
-"""Exceptions raised by spokenid."""
+"""Exceptions raised by spokenid.
+
+Everything this library raises inherits from :class:`SpokenIdError`, and also
+from the built-in you would expect, so existing ``except`` clauses keep working.
+"""
 
 from __future__ import annotations
 
 __all__ = [
+    "InvalidArgument",
     "InvalidScheme",
     "SequenceExhausted",
     "SpaceExhausted",
     "SpokenIdError",
+    "Unreadable",
 ]
 
 
@@ -15,7 +21,15 @@ class SpokenIdError(Exception):
 
 
 class InvalidScheme(SpokenIdError, ValueError):
-    """A :class:`~spokenid.Scheme` was asked for something it cannot be."""
+    """A :class:`~spokenid.Scheme` or :class:`~spokenid.Alphabet` cannot exist."""
+
+
+class InvalidArgument(SpokenIdError, ValueError):
+    """An argument to a method was outside what it accepts."""
+
+
+class Unreadable(SpokenIdError, ValueError):
+    """Something that should have been an identifier could not be read."""
 
 
 class SpaceExhausted(SpokenIdError, RuntimeError):
@@ -24,11 +38,3 @@ class SpaceExhausted(SpokenIdError, RuntimeError):
 
 class SequenceExhausted(SpokenIdError, RuntimeError):
     """``Scheme.next()`` ran past the last identifier the scheme can express."""
-
-
-class Unreadable(SpokenIdError, ValueError):
-    """Something that should have been an identifier could not be read.
-
-    Inherits from :class:`ValueError` as well, so code that already catches that
-    keeps working.
-    """

@@ -33,10 +33,10 @@ Someone reads that down a phone line and the clerk hears "oh" instead of zero:
 ```python
 read = scheme.parse("7hw2 oj46")
 
-read.ok        # True
-read.value     # '7HW2-0J46'
-read.repairs   # (Repair(position=4, typed='O', read_as='0'),)
-read.exact     # False — it needed a repair, so confirm before you act on it
+read.ok  # True
+read.value  # '7HW2-0J46'
+read.repairs  # (Repair(position=4, typed='O', read_as='0'),)
+read.exact  # False — it needed a repair, so confirm before you act on it
 ```
 
 `Parsed` is truthy when it worked, so `if scheme.parse(x):` reads fine. The
@@ -45,7 +45,9 @@ identifier without saying so is how the wrong record gets opened:
 
 ```python
 for repair in read.repairs:
-    print(f"Position {repair.position}: you typed {repair.typed}, we read {repair.read_as}")
+    print(
+        f"Position {repair.position}: you typed {repair.typed}, we read {repair.read_as}"
+    )
 ```
 
 And when it is genuinely wrong, you get a sentence you can show someone:
@@ -138,8 +140,9 @@ Scheme(alphabet=digits, length=6).random()
 ```
 
 `derive` removes the vowels unless you say otherwise, then removes every key of
-`lookalikes` and keeps every value. Keep the count even, or turn the check
-character off — see below.
+`lookalikes` and keeps every value. Keys and values are single characters, the
+pool is folded to upper case, and the count needs to stay even unless you turn
+the check character off.
 
 ## Two ways to issue an identifier
 
@@ -191,7 +194,7 @@ scheme.next("0000-001X", step=random.randint(1, 50))
 Any length works, and the grouping follows automatically:
 
 ```python
-Scheme(length=6).random()   # 'KKK-QCJ'
+Scheme(length=6).random()  # 'KKK-QCJ'
 Scheme(length=10).random()  # '3MV-THK-5Y73'
 ```
 
@@ -225,7 +228,7 @@ quietly promising less than it delivers:
 from spokenid import Alphabet, InvalidScheme, Scheme
 
 odd = Alphabet.derive(lookalikes={"I": "1", "O": "0", "B": "8", "S": "5"})
-len(odd)   # 29
+len(odd)  # 29
 
 try:
     Scheme(alphabet=odd)
@@ -246,7 +249,8 @@ working.
 
 | Raised by | Error | Also a |
 |---|---|---|
-| `Scheme(...)` with impossible arguments | `InvalidScheme` | `ValueError` |
+| `Scheme(...)` or `Alphabet(...)` that cannot exist | `InvalidScheme` | `ValueError` |
+| An argument outside what a method accepts | `InvalidArgument` | `ValueError` |
 | `random()` after repeated collisions | `SpaceExhausted` | `RuntimeError` |
 | `next()` past the end of the space | `SequenceExhausted` | `RuntimeError` |
 | `next()` on something unreadable | `Unreadable` | `ValueError` |

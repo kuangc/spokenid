@@ -43,8 +43,15 @@ NATO: Mapping[str, str] = MappingProxyType(
 def phonetic(identifier: str, separator: str = "-") -> str:
     """Spell ``identifier`` for reading aloud.
 
+    A plain NATO speller: it does not validate, so run anything a person typed
+    through :meth:`Scheme.parse` first. An empty ``separator`` spells the whole
+    string as one group.
+
     >>> phonetic("4KM7-PC2X")
     '4 Kilo Mike 7, Papa Charlie 2 X-ray'
+    >>> phonetic("4KM7", separator="")
+    '4 Kilo Mike 7'
     """
-    groups = identifier.upper().split(separator)
+    text = identifier.upper()
+    groups = text.split(separator) if separator else [text]
     return ", ".join(" ".join(NATO.get(c, c) for c in group) for group in groups)

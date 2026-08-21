@@ -52,13 +52,31 @@ class Alphabet:
             raise InvalidScheme("an alphabet needs at least two characters")
         if len(set(self.characters)) != len(self.characters):
             raise InvalidScheme("an alphabet cannot repeat a character")
-        for item in self.excluded:
-            if item.char in self.characters:
-                raise InvalidScheme(f"{item.char!r} is both excluded and in the alphabet")
-            if item.reads_as is not None and item.reads_as not in self.characters:
+        for char in self.characters:
+            # _flatten() upper-cases before matching, so a lower-case alphabet
+            # would issue identifiers it could never read back.
+            if char != char.upper() or not char.isprintable() or char.isspace():
                 raise InvalidScheme(
-                    f"{item.char!r} is meant to read as {item.reads_as!r}, "
-                    "which is not in the alphabet"
+                    f"{char!r} cannot be in an alphabet: characters must be upper "
+                    "case, printable, and not whitespace"
+                )
+        allowed = set(self.characters)
+        for item in self.excluded:
+            if len(item.char) != 1:
+                raise InvalidScheme(
+                    f"{item.char!r} is not a single character, so it cannot be excluded"
+                )
+            if item.char in allowed:
+                raise InvalidScheme(f"{item.char!r} is both excluded and in the alphabet")
+            if item.reads_as is None:
+                continue
+            # `in` on a str is a substring test, which would let "" and "12"
+            # through, and both make parse() accept things that are not
+            # identifiers. Check one character against the set instead.
+            if len(item.reads_as) != 1 or item.reads_as not in allowed:
+                raise InvalidScheme(
+                    f"{item.char!r} is meant to read as {item.reads_as!r}, which is "
+                    "not a single character from the alphabet"
                 )
 
     @classmethod
@@ -82,15 +100,25 @@ class Alphabet:
         >>> digits_only.characters
         '0123456789'
         """
-        table = dict(LOOKALIKES if lookalikes is None else lookalikes)
+        given = LOOKALIKES if lookalikes is None else lookalikes
+        for key in given:
+            if len(key) != 1:
+                raise InvalidScheme(
+                    f"{key!r} is not a single character, so it cannot be a lookalike"
+                )
+        # Fold to upper case so a lower-case pool still loses its vowels.
+        table = {k.upper(): v.upper() for k, v in given.items()}
+        pool = "".join(dict.fromkeys(pool.upper()))
         vowels = VOWELS if drop_vowels else frozenset()
 
         excluded = []
         for char in pool:
-            if char in vowels:
-                excluded.append(Excluded(char, "vowel", table.get(char)))
-            elif char in table:
+            # Lookalike first: I and O are both vowels and lookalikes, and the
+            # useful thing to say about them is what they read as.
+            if char in table:
                 excluded.append(Excluded(char, "lookalike", table[char]))
+            elif char in vowels:
+                excluded.append(Excluded(char, "vowel", None))
 
         dropped = {item.char for item in excluded}
         characters = "".join(c for c in pool if c not in dropped)
@@ -133,6 +161,9 @@ class Alphabet:
         if not isinstance(char, str) or len(char) != 1:
             return f"{char!r} is not a single character"
         upper = char.upper()
+        if len(upper) != 1:
+            # e.g. "ß" upper-cases to "SS"; name what was typed, not that.
+            return f"{char!r} is not a character this alphabet knows about"
         if upper in self.characters:
             return f"{upper!r} is in the alphabet"
         item = self._excluded(upper)

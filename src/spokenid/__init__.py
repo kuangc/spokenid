@@ -11,6 +11,7 @@ from __future__ import annotations
 from .alphabet import LOOKALIKES, SPOKEN, VOWELS, Alphabet, Excluded
 from .check import Luhn
 from .errors import (
+    InvalidArgument,
     InvalidScheme,
     SequenceExhausted,
     SpaceExhausted,
@@ -29,6 +30,7 @@ __all__ = [
     "VOWELS",
     "Alphabet",
     "Excluded",
+    "InvalidArgument",
     "InvalidScheme",
     "Luhn",
     "Parsed",

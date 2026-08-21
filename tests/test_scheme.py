@@ -40,7 +40,7 @@ def test_empty_group_is_refused() -> None:
 
 
 def test_separator_cannot_be_a_character_in_the_alphabet() -> None:
-    with pytest.raises(InvalidScheme, match="also a character"):
+    with pytest.raises(InvalidScheme, match="already means something by"):
         Scheme(length=8, groups=(4, 4), separator="7")
 
 
@@ -304,3 +304,68 @@ def test_next_raises_the_library_error(scheme: Scheme) -> None:
         scheme.next("nonsense")
     with pytest.raises(ValueError, match="cannot read"):  # still a ValueError
         scheme.next("nonsense")
+
+
+@pytest.mark.parametrize("separator", ["0C", "YX", "XY", "O", "S", "0"])
+def test_a_separator_cannot_reuse_an_alphabet_or_repair_character(separator: str) -> None:
+    """`sep in chars` was a substring test, so 'YX' passed where 'XY' failed."""
+    with pytest.raises(InvalidScheme, match="already means something by"):
+        Scheme(length=8, groups=(4, 4), separator=separator)
+
+
+def test_every_identifier_a_scheme_issues_can_be_read_back(scheme: Scheme) -> None:
+    """A bad separator used to give sequences that died after ten steps."""
+    current = scheme.first()
+    for _ in range(200):
+        assert scheme.parse(current).ok, current
+        current = scheme.next(current)
+
+
+def test_sizing_survives_absurd_numbers(scheme: Scheme) -> None:
+    assert scheme.guess_odds(10**400) == 1.0  # used to raise OverflowError
+    huge = Scheme(length=230, groups=(230,))
+    report = huge.describe([10_000])
+    assert "never" not in report  # a finite space was reported as no risk at all
+    assert "inf" not in report
+
+
+def test_describe_is_honest_at_the_edges() -> None:
+    tiny = Scheme(length=4)
+    assert "never" in tiny.describe([0])
+    assert "always" in tiny.describe([tiny.space * 2])
+
+
+def test_a_long_paste_is_refused_before_it_is_scanned(scheme: Scheme) -> None:
+    read = scheme.parse("O" * 5_000_000)
+    assert not read.ok
+    assert "far longer" in (read.problem or "")
+
+
+def test_a_character_that_upper_cases_to_two_is_one_mistake_not_two(
+    scheme: Scheme,
+) -> None:
+    """'ß'.upper() == 'SS', which used to report two repairs at wrong positions."""
+    # Eight characters once the separator goes, so length is not the complaint.
+    assert len(scheme._flatten("0000-0ßDD")) == scheme.length
+    read = scheme.parse("0000-0ßDD")
+    assert not read.ok
+    assert "ß" in (read.problem or "")
+    # And one typed character never becomes two repairs.
+    assert not read.repairs
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        lambda s: s.random(attempts=0),
+        lambda s: s.next(s.first(), step=0),
+        lambda s: s.guess_odds(-1),
+    ],
+)
+def test_argument_errors_are_library_errors(scheme: Scheme, call: object) -> None:
+    from spokenid import InvalidArgument, SpokenIdError
+
+    with pytest.raises(SpokenIdError):
+        call(scheme)  # type: ignore[operator]
+    with pytest.raises(InvalidArgument):
+        call(scheme)  # type: ignore[operator]

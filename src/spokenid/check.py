@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .alphabet import Alphabet
-from .errors import InvalidScheme
+from .errors import InvalidArgument, InvalidScheme
 
 __all__ = ["Luhn"]
 
@@ -35,19 +35,35 @@ class Luhn:
             )
 
     def compute(self, body: str) -> str:
-        """Return the check character for ``body``."""
+        """Return the check character for ``body``.
+
+        Raises :class:`~spokenid.InvalidArgument` if ``body`` contains anything
+        outside the alphabet.
+        """
         chars = self.alphabet.characters
         size = len(chars)
         factor = 2
         total = 0
         for char in reversed(body):
-            addend = factor * chars.index(char)
+            position = chars.find(char)
+            if position < 0:
+                raise InvalidArgument(
+                    f"{char!r} is not in the alphabet, so it has no check character"
+                )
+            addend = factor * position
             factor = 1 if factor == 2 else 2
             total += addend // size + addend % size
         return chars[(size - total % size) % size]
 
     def verify(self, identifier: str) -> bool:
-        """True when the last character of ``identifier`` is the right one."""
+        """True when the last character of ``identifier`` is the right one.
+
+        Answers ``False`` rather than raising for anything that is not made of
+        alphabet characters, because callers use this as a question.
+        """
         if len(identifier) < 2:
             return False
-        return self.compute(identifier[:-1]) == identifier[-1]
+        try:
+            return self.compute(identifier[:-1]) == identifier[-1]
+        except InvalidArgument:
+            return False

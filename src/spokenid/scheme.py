@@ -9,7 +9,13 @@ from dataclasses import dataclass, field
 
 from .alphabet import SPOKEN, Alphabet
 from .check import Luhn
-from .errors import InvalidScheme, SequenceExhausted, SpaceExhausted, Unreadable
+from .errors import (
+    InvalidArgument,
+    InvalidScheme,
+    SequenceExhausted,
+    SpaceExhausted,
+    Unreadable,
+)
 
 __all__ = ["Parsed", "Repair", "Scheme"]
 
@@ -17,6 +23,19 @@ Taken = Callable[[str], bool]
 
 #: Characters per group when the caller does not choose. Four reads well aloud.
 PREFERRED_GROUP = 4
+
+#: Longest input parse() will look at. No identifier needs anything near this,
+#: and it keeps a pasted megabyte from being scanned character by character.
+MAX_INPUT = 4096
+
+
+def _short(value: int) -> str:
+    """Approximate a very large integer without converting it to a float.
+
+    ``float(10**400)`` overflows, so the digits are counted instead.
+    """
+    digits = str(value)
+    return f"{digits[0]}.{digits[1:3]}e+{len(digits) - 1}"
 
 
 def default_groups(length: int) -> tuple[int, ...]:
@@ -110,10 +129,18 @@ class Scheme:
             )
         if any(size < 1 for size in self.groups):
             raise InvalidScheme("every group needs at least one character")
-        if self.separator and self.separator in self.alphabet.characters:
+        # `in` on a str is a substring test: "YX" would pass while "XY" failed.
+        # Compare character by character, and include the characters that
+        # repair into the alphabet, or a typed separator would be stripped
+        # instead of corrected.
+        clash = set(self.separator) & (
+            set(self.alphabet.characters) | set(self.alphabet.repairs)
+        )
+        if clash:
             raise InvalidScheme(
-                f"the separator {self.separator!r} is also a character in the "
-                "alphabet, so an identifier could not be read back"
+                f"the separator {self.separator!r} uses {''.join(sorted(clash))!r}, "
+                "which the alphabet already means something by, so an identifier "
+                "could not be read back"
             )
         object.__setattr__(self, "_checker", Luhn(self.alphabet) if self.check else None)
 
@@ -158,7 +185,7 @@ class Scheme:
         a row, rather than looping forever.
         """
         if attempts < 1:
-            raise ValueError("attempts must be at least 1")
+            raise InvalidArgument("attempts must be at least 1")
         chars = self.alphabet.characters
         for _ in range(attempts):
             candidate = self._finish(
@@ -197,7 +224,7 @@ class Scheme:
         identifier, and :class:`~spokenid.SequenceExhausted` at the end.
         """
         if step < 1:
-            raise ValueError("step must be at least 1")
+            raise InvalidArgument("step must be at least 1")
         read = self.parse(previous)
         if not read.ok or read.value is None:
             raise Unreadable(f"cannot read {previous!r}: {read.problem}")
@@ -233,10 +260,22 @@ class Scheme:
     # ---------------------------------------------------------------- reading
 
     def _flatten(self, raw: str) -> str:
-        cleaned = "".join(raw.split())
+        """Drop whitespace and separators, and upper-case, character by character.
+
+        Done one character at a time because ``str.upper()`` can lengthen a
+        string (``"ß"`` becomes ``"SS"``), which would report two mistakes at
+        the wrong positions for one character the person actually typed.
+        """
+        kept = []
+        for char in raw:
+            if char.isspace():
+                continue
+            upper = char.upper()
+            kept.append(upper if len(upper) == 1 else char)
+        cleaned = "".join(kept)
         if self.separator:
-            cleaned = cleaned.replace(self.separator, "")
-        return cleaned.upper()
+            cleaned = cleaned.replace(self.separator.upper(), "")
+        return cleaned
 
     def parse(self, raw: object) -> Parsed:
         """Read something a person typed.
@@ -255,31 +294,43 @@ class Scheme:
                 problem=(f"an identifier is text, and this is {type(raw).__name__}"),
             )
 
+        if len(raw) > MAX_INPUT:
+            return Parsed(
+                False,
+                problem=(
+                    f"an identifier is {self.length} characters, and this is far longer"
+                ),
+            )
+
         flat = self._flatten(raw)
         if not flat:
             return Parsed(False, problem="no identifier was given")
+        # Length first. Repairs are one character for one character, so this
+        # cannot change, and checking now bounds the work on a long paste.
+        if len(flat) != self.length:
+            return Parsed(
+                False,
+                problem=(
+                    f"an identifier is {self.length} characters, "
+                    f"and this one has {len(flat)}"
+                ),
+            )
 
+        allowed = self.alphabet.characters
+        table = self.alphabet.repairs  # a fresh mapping per access, so read it once
         repairs: list[Repair] = []
         out: list[str] = []
         for position, char in enumerate(flat):
-            if char in self.alphabet.characters:
+            if char in allowed:
                 out.append(char)
                 continue
-            reads_as = self.alphabet.repairs.get(char)
+            reads_as = table.get(char)
             if reads_as is None:
                 return Parsed(False, problem=self.alphabet.explain(char))
             repairs.append(Repair(position, char, reads_as))
             out.append(reads_as)
 
         fixed = "".join(out)
-        if len(fixed) != self.length:
-            return Parsed(
-                False,
-                problem=(
-                    f"an identifier is {self.length} characters, "
-                    f"and this one has {len(fixed)}"
-                ),
-            )
         if self._checker is not None and not self._checker.verify(fixed):
             return Parsed(
                 False,
@@ -301,8 +352,12 @@ class Scheme:
         identifier that is easy to guess is a way to reach someone else's record.
         """
         if members < 0:
-            raise ValueError("members cannot be negative")
-        return min(1.0, members / self.space)
+            raise InvalidArgument("members cannot be negative")
+        if members >= self.space:
+            return 1.0
+        # Compared before dividing: members / space overflows for a huge
+        # population, and underflows to 0.0 for a huge space.
+        return members / self.space
 
     def describe(self, members: Iterable[int] = (10_000, 100_000, 1_000_000)) -> str:
         """A short report on how big this scheme is, for choosing ``length``."""
@@ -312,8 +367,15 @@ class Scheme:
             f"({self.length} characters, shown as {shape})"
         ]
         for count in members:
-            odds = self.guess_odds(count)
-            hit = f"1 in {1 / odds:,.0f}" if odds else "never"
+            # Integer division, because the float form underflows to zero for a
+            # large space and then reports a finite risk as "never".
+            if count <= 0:
+                hit = "never"
+            elif count >= self.space:
+                hit = "always"
+            else:
+                one_in = self.space // count
+                hit = f"1 in {one_in:,}" if one_in < 10**15 else f"1 in {_short(one_in)}"
             lines.append(
                 f"  at {count:>10,} members, a blind guess names a real one {hit}"
             )

@@ -71,3 +71,18 @@ def test_catches_most_neighbour_swaps() -> None:
 
 def test_verify_rejects_something_too_short() -> None:
     assert not Luhn(SPOKEN).verify("4")
+
+
+def test_verify_answers_rather_than_raising_on_junk() -> None:
+    """It returns a bool, so it has to return one for anything."""
+    luhn = Luhn(SPOKEN)
+    assert not luhn.verify("AAAA")
+    assert not luhn.verify("0-0")
+    assert not luhn.verify("ßß")
+
+
+def test_compute_refuses_a_character_it_does_not_know() -> None:
+    from spokenid import InvalidArgument
+
+    with pytest.raises(InvalidArgument, match="not in the alphabet"):
+        Luhn(SPOKEN).compute("A")

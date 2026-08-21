@@ -17,3 +17,8 @@ def test_every_letter_in_the_alphabet_has_a_word() -> None:
     letters = [c for c in SPOKEN.characters if c.isalpha()]
     assert letters
     assert all(c in NATO for c in letters)
+
+
+def test_an_empty_separator_spells_the_whole_string() -> None:
+    """Scheme(separator="") is legal, so pairing the two must not raise."""
+    assert phonetic("4KM7", separator="") == "4 Kilo Mike 7"

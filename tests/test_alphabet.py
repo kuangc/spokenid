@@ -60,7 +60,7 @@ def test_derive_with_custom_lookalikes() -> None:
 
 
 def test_repair_target_must_be_in_the_alphabet() -> None:
-    with pytest.raises(InvalidScheme, match="not in the alphabet"):
+    with pytest.raises(InvalidScheme, match="not a single character from the alphabet"):
         Alphabet.derive(pool="ABC", drop_vowels=False, lookalikes={"B": "9"})
 
 
@@ -96,3 +96,39 @@ def test_a_character_cannot_be_both_in_and_out() -> None:
 def test_explain_handles_things_that_are_not_one_character(value: object) -> None:
     """'' used to be reported as a member, because '' in 'ABC' is True."""
     assert "not a single character" in SPOKEN.explain(value)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    "lookalikes",
+    [
+        {"B": ""},  # "" is a substring of everything, so `in` let it pass
+        {"B": "12"},  # so is any run of adjacent alphabet characters
+        {"BG": "8"},  # a key has to be one character too
+    ],
+)
+def test_a_repair_must_name_exactly_one_character(lookalikes: dict[str, str]) -> None:
+    """An empty target made parse() accept arbitrary junk as a valid identifier."""
+    with pytest.raises(InvalidScheme):
+        Alphabet.derive(lookalikes=lookalikes)
+
+
+@pytest.mark.parametrize("characters", ["abcdef", "012 45", "01\x0034", "AB\tCD"])
+def test_an_alphabet_must_be_upper_case_and_printable(characters: str) -> None:
+    """Reading upper-cases, so a lower-case alphabet could never be read back."""
+    with pytest.raises(InvalidScheme):
+        Alphabet(characters)
+
+
+def test_derive_folds_case_so_a_lowercase_pool_still_loses_its_vowels() -> None:
+    alphabet = Alphabet.derive(pool="abcdefghijklmnopqrstuvwxyz", lookalikes={})
+    assert not set("AEIOU") & set(alphabet.characters)
+    assert alphabet.characters == alphabet.characters.upper()
+
+
+def test_lookalikes_that_are_also_vowels_are_described_as_lookalikes() -> None:
+    """I and O are both. What matters is what they read as."""
+    reasons = {item.char: item.reason for item in SPOKEN.excluded}
+    assert reasons["I"] == "lookalike"
+    assert reasons["O"] == "lookalike"
+    assert reasons["A"] == "vowel"
+    assert len([r for r in reasons.values() if r == "lookalike"]) == len(SPOKEN.repairs)
