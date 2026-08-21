@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import contextlib
+import os
+
 import pytest
 
 from spokenid import Scheme
@@ -180,10 +183,17 @@ def test_a_batch_never_contains_the_same_identifier_twice(
 
 
 class _ClosedPipe:
-    """A stdout whose writes fail the way a closed pipe's do."""
+    """A stdout whose writes fail the way a closed pipe's do.
+
+    `fileno()` hands back a descriptor onto /dev/null rather than raising, so
+    that when the handler redirects the stream it redirects this instead of
+    pytest's own capture file. Raising here is not enough: something on 3.14
+    asks for the descriptor outside the handler's suppression.
+    """
 
     def __init__(self, error: OSError) -> None:
         self._error = error
+        self._fd = os.open(os.devnull, os.O_WRONLY)
 
     def write(self, _: str) -> int:
         raise self._error
@@ -192,7 +202,11 @@ class _ClosedPipe:
         raise self._error
 
     def fileno(self) -> int:
-        raise ValueError("not a real stream")
+        return self._fd
+
+    def close(self) -> None:
+        with contextlib.suppress(OSError):
+            os.close(self._fd)
 
 
 @pytest.mark.parametrize(
