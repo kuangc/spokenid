@@ -525,6 +525,45 @@ class Scheme:
 
     # ---------------------------------------------------------------- sizing
 
+    @property
+    def swap_detection(self) -> float:
+        """How many neighbour swaps this scheme's check character catches.
+
+        A fraction. The README quotes 99.7%, which is the figure for the default alphabet.
+        A different alphabet gives a different rate, and the risk of a mistyped
+        identifier landing on a real record is parameterised on it: the
+        digits-only alphabet in the README's own "Building your own" example
+        catches 97.8%, seven times more misses.
+
+        Exact rather than sampled. The rate does not change with length, so it
+        is measured over every two-character body. Zero when there is no check
+        character, because then nothing is caught.
+
+        >>> round(Scheme().swap_detection, 3)
+        0.997
+        """
+        checker = self._checker
+        if checker is None:
+            return 0.0
+        chars = self.alphabet.characters
+        caught = total = 0
+        for first in chars:
+            for second in chars:
+                body = first + second
+                full = body + checker.compute(body)
+                for position in range(len(full) - 1):
+                    if full[position] == full[position + 1]:
+                        continue
+                    total += 1
+                    swapped = (
+                        full[:position]
+                        + full[position + 1]
+                        + full[position]
+                        + full[position + 2 :]
+                    )
+                    caught += not checker.verify(swapped)
+        return caught / total if total else 0.0
+
     def guess_odds(self, members: int) -> float:
         """The chance that a blind guess names a real member.
 
@@ -547,6 +586,13 @@ class Scheme:
             f"{len(self.alphabet)}^{self.body_length} = {self.space:,} identifiers "
             f"({self.length} characters, shown as {shape})"
         ]
+        if self.check:
+            lines.append(
+                f"  the check character catches every single-character mistake "
+                f"and {self.swap_detection:.1%} of neighbour swaps"
+            )
+        else:
+            lines.append("  no check character, so no mistake is caught")
         for count in members:
             if count < 0:
                 raise InvalidArgument("members cannot be negative")

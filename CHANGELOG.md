@@ -10,10 +10,15 @@ Nothing has been released yet. Everything below ships in the first release.
 
 ### Added
 
-- `RELEASING.md`, and gates so the documentation cannot lag a tag: the suite
-  fails if a version is tagged with no changelog section, or if the README
-  still says the package is not on PyPI once something is published. That text
-  is what renders on the PyPI page.
+- `Scheme.swap_detection`, the fraction of neighbour swaps this scheme's check
+  character catches, measured exactly. `describe()` reports it. The 99.7% in
+  the README is the default alphabet's figure; a smaller alphabet catches
+  fewer, and the wrong-record risk above is parameterised on it.
+
+- `RELEASING.md`, and gates in `release.yml` so the documentation cannot lag a
+  tag: a tag push fails if there is no changelog section for that version, or
+  if the README still says the package is not on PyPI. That text is what
+  renders on the PyPI page.
 - The release workflow runs the full suite on every supported Python and uses
   the built wheel from a clean environment before it publishes anything. It
   used to build and publish without a single test.

@@ -151,3 +151,17 @@ def test_a_lookalike_outside_the_pool_is_refused() -> None:
     """It used to be dropped in silence, so the caller's intent vanished."""
     with pytest.raises(InvalidScheme, match="not in the pool"):
         Alphabet.derive(pool="0123456789", lookalikes={"Q": "0"})
+
+
+def test_an_excluded_entry_must_be_one_character() -> None:
+    from spokenid.alphabet import Excluded
+
+    with pytest.raises(InvalidScheme, match="not a single character"):
+        Alphabet("0123456789", (Excluded("AB", "vowel", None),))
+
+
+def test_an_excluded_character_cannot_also_be_in_the_alphabet() -> None:
+    from spokenid.alphabet import Excluded
+
+    with pytest.raises(InvalidScheme, match="both excluded and in the alphabet"):
+        Alphabet("0123456789", (Excluded("0", "lookalike", "1"),))

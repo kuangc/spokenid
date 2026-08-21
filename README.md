@@ -223,6 +223,15 @@ Scheme(alphabet=digits, length=6).random()
 pool is folded to upper case, and the count needs to stay even unless you turn
 the check character off.
 
+**Check what you built.** A smaller alphabet catches fewer neighbour swaps, and
+that rate drives the wrong-record risk above. The digits-only scheme here
+catches 97.8% against the default's 99.7%, which is seven times the misses:
+
+```python
+round(Scheme(alphabet=digits, length=6).swap_detection, 3)
+# 0.978
+```
+
 ## Two ways to issue an identifier
 
 ### Random, when it might appear in a URL
@@ -341,6 +350,7 @@ print(Scheme(length=10).describe([100_000]))
 
 ```
 26^9 = 5,429,503,678,976 identifiers (10 characters, shown as XXX-XXX-XXXX)
+  the check character catches every single-character mistake and 99.7% of neighbour swaps
   at    100,000 members, a blind guess names a real one 1 in 54,295,036
 ```
 
@@ -370,6 +380,15 @@ identifier carries seven random ones.
 
 Like the last digit of a credit card number. It catches **every** single-character
 mistake, and about 99.7% of swaps of neighbouring characters.
+
+That second figure belongs to this alphabet. A different one gives a different
+rate, and everything in the section above about mistyped identifiers landing on
+real records is parameterised on it. Ask your own scheme rather than assuming:
+
+```python
+round(Scheme().swap_detection, 3)
+# 0.997
+```
 
 That guarantee needs an alphabet with an even number of characters, which is why
 this one has twenty-six. Over an odd alphabet roughly one single-character

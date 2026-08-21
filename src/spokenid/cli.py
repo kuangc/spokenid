@@ -179,13 +179,6 @@ def _run(argv: Sequence[str] | None = None) -> int:
                 print(f"  {SPOKEN.explain(item.char)}")
             return 0
 
-    except BrokenPipeError:
-        # Somebody piped us into `head`. Point stdout at nothing so the
-        # interpreter's own flush on exit cannot raise a second time, and
-        # report the shell's convention for dying on SIGPIPE.
-        with contextlib.suppress(OSError):
-            os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
-        return 141
     except SpokenIdError as error:
         print(error, file=sys.stderr)
         return 1

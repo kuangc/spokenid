@@ -6,7 +6,7 @@ import itertools
 
 import pytest
 
-from spokenid import SPOKEN, Alphabet, InvalidScheme, Luhn
+from spokenid import SPOKEN, Alphabet, InvalidScheme, Luhn, Scheme
 
 
 def test_odd_alphabet_is_refused() -> None:
@@ -92,3 +92,43 @@ def test_compute_refuses_a_character_it_does_not_know() -> None:
 def test_verify_answers_for_things_that_are_not_text(junk: object) -> None:
     """It promises a bool, so it has to return one for anything at all."""
     assert Luhn(SPOKEN).verify(junk) is False
+
+
+def test_swap_detection_is_exact_not_sampled() -> None:
+    """The rate does not change with length, so a short measurement is exact."""
+    import itertools
+
+    scheme = Scheme()
+    luhn = Luhn(SPOKEN)
+    caught = total = 0
+    for body in itertools.product(SPOKEN.characters, repeat=3):
+        joined = "".join(body)
+        full = joined + luhn.compute(joined)
+        for position in range(len(full) - 1):
+            if full[position] == full[position + 1]:
+                continue
+            total += 1
+            swapped = (
+                full[:position]
+                + full[position + 1]
+                + full[position]
+                + full[position + 2 :]
+            )
+            caught += not luhn.verify(swapped)
+    assert abs(scheme.swap_detection - caught / total) < 1e-12
+
+
+def test_a_smaller_alphabet_catches_fewer_swaps() -> None:
+    """The README quotes 99.7% for the default; it is not a universal figure."""
+    digits = Alphabet.derive(drop_vowels=False, lookalikes={}, pool="0123456789")
+    assert round(Scheme().swap_detection, 3) == 0.997
+    assert round(Scheme(alphabet=digits, length=6).swap_detection, 3) == 0.978
+
+
+def test_no_check_character_catches_nothing() -> None:
+    assert Scheme(check=False).swap_detection == 0.0
+
+
+def test_describe_reports_the_rate() -> None:
+    assert "99.7% of neighbour swaps" in Scheme().describe([1000])
+    assert "no check character" in Scheme(check=False).describe([1000])

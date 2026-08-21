@@ -177,3 +177,65 @@ def test_a_batch_never_contains_the_same_identifier_twice(
     printed = capsys.readouterr().out.split()
     assert len(printed) == 300
     assert len(set(printed)) == 300
+
+
+class _ClosedPipe:
+    """A stdout whose writes fail the way a closed pipe's do."""
+
+    def __init__(self, error: OSError) -> None:
+        self._error = error
+
+    def write(self, _: str) -> int:
+        raise self._error
+
+    def flush(self) -> None:
+        raise self._error
+
+    def fileno(self) -> int:
+        raise ValueError("not a real stream")
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        BrokenPipeError(32, "Broken pipe"),
+        OSError(22, "Invalid argument"),  # what Windows raises
+    ],
+)
+def _both_streams_closed(monkeypatch: pytest.MonkeyPatch, error: OSError) -> None:
+    """Replace both streams, so _abandon_output cannot reach a real descriptor.
+
+    Its fileno() raises, which the handler suppresses; without this it would
+    redirect pytest's own capture file and take the test session with it.
+    """
+    monkeypatch.setattr("sys.stdout", _ClosedPipe(error))
+    monkeypatch.setattr("sys.stderr", _ClosedPipe(error))
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        BrokenPipeError(32, "Broken pipe"),
+        OSError(22, "Invalid argument"),  # what Windows raises
+    ],
+)
+def test_a_write_failing_like_a_closed_pipe_gives_141(
+    monkeypatch: pytest.MonkeyPatch, error: OSError
+) -> None:
+    _both_streams_closed(monkeypatch, error)
+    assert main(["new"]) == 141
+
+
+def test_the_same_on_the_argparse_exit_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    """--version leaves through SystemExit, past the ordinary flush."""
+    _both_streams_closed(monkeypatch, BrokenPipeError(32, "Broken pipe"))
+    assert main(["--version"]) == 141
+
+
+def test_an_unrelated_oserror_is_not_swallowed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Only pipe errors are absorbed; a real failure still surfaces."""
+    _both_streams_closed(monkeypatch, OSError(28, "No space left"))
+    with pytest.raises(OSError, match="No space left"):
+        main(["new"])
