@@ -1,0 +1,252 @@
+"""Issuing, reading and sizing identifiers."""
+
+from __future__ import annotations
+
+import pytest
+
+from spokenid import (
+    SPOKEN,
+    Alphabet,
+    InvalidScheme,
+    Scheme,
+    SequenceExhausted,
+    SpaceExhausted,
+)
+
+
+@pytest.fixture
+def scheme() -> Scheme:
+    return Scheme()
+
+
+# ------------------------------------------------------------------ shape
+
+
+def test_default_shape(scheme: Scheme) -> None:
+    assert scheme.length == 8
+    assert scheme.body_length == 7
+    assert scheme.space == 26**7
+    assert len(scheme.random()) == 9  # eight characters and one separator
+
+
+def test_groups_must_add_up() -> None:
+    with pytest.raises(InvalidScheme, match="add up to"):
+        Scheme(length=8, groups=(3, 3))
+
+
+def test_empty_group_is_refused() -> None:
+    with pytest.raises(InvalidScheme, match="at least one character"):
+        Scheme(length=8, groups=(8, 0))
+
+
+def test_separator_cannot_be_a_character_in_the_alphabet() -> None:
+    with pytest.raises(InvalidScheme, match="also a character"):
+        Scheme(length=8, groups=(4, 4), separator="7")
+
+
+def test_too_short_is_refused() -> None:
+    with pytest.raises(InvalidScheme, match="at least two"):
+        Scheme(length=1, groups=(1,))
+
+
+def test_odd_alphabet_needs_check_turned_off() -> None:
+    odd = Alphabet.derive(lookalikes={"I": "1", "O": "0", "B": "8", "S": "5"})
+    with pytest.raises(InvalidScheme, match="even number of characters"):
+        Scheme(alphabet=odd)
+    works = Scheme(alphabet=odd, check=False)
+    assert works.validate(works.random())
+
+
+def test_scheme_is_hashable(scheme: Scheme) -> None:
+    assert len({scheme, Scheme()}) == 1
+
+
+def test_groups_given_as_a_list_still_works() -> None:
+    assert Scheme(length=8, groups=[4, 4]).random()
+
+
+# ------------------------------------------------------------------ random
+
+
+def test_random_is_valid(scheme: Scheme) -> None:
+    for _ in range(200):
+        assert scheme.validate(scheme.random())
+
+
+def test_random_retries_past_a_taken_identifier(scheme: Scheme) -> None:
+    seen: list[str] = []
+
+    def taken(candidate: str) -> bool:
+        # Refuse the first two candidates, accept the third.
+        seen.append(candidate)
+        return len(seen) < 3
+
+    assert scheme.random(taken=taken) == seen[-1]
+    assert len(seen) == 3
+
+
+def test_random_gives_up_loudly(scheme: Scheme) -> None:
+    with pytest.raises(SpaceExhausted, match="outgrown"):
+        scheme.random(taken=lambda _: True, attempts=3)
+
+
+def test_attempts_must_be_positive(scheme: Scheme) -> None:
+    with pytest.raises(ValueError, match="at least 1"):
+        scheme.random(attempts=0)
+
+
+# ------------------------------------------------------------------ counting
+
+
+def test_first_then_next(scheme: Scheme) -> None:
+    first = scheme.first()
+    assert scheme.validate(first)
+    assert scheme.validate(scheme.next(first))
+    assert scheme.next(first) != first
+
+
+def test_counting_never_repeats_and_stays_in_order(scheme: Scheme) -> None:
+    issued = [scheme.first()]
+    for _ in range(5_000):
+        issued.append(scheme.next(issued[-1]))
+    assert len(set(issued)) == len(issued)
+    assert sorted(issued) == issued  # sorts into the order they were issued
+
+
+def test_step_leaves_gaps_but_keeps_order(scheme: Scheme) -> None:
+    issued = [scheme.first()]
+    for size in (1, 7, 50, 999):
+        issued.append(scheme.next(issued[-1], step=size))
+    assert sorted(issued) == issued
+    assert len(set(issued)) == len(issued)
+
+
+def test_step_must_be_positive(scheme: Scheme) -> None:
+    with pytest.raises(ValueError, match="at least 1"):
+        scheme.next(scheme.first(), step=0)
+
+
+def test_next_reads_a_messy_previous(scheme: Scheme) -> None:
+    tidy = scheme.next(scheme.first())
+    messy = tidy.lower().replace("-", " ")
+    assert scheme.next(messy) == scheme.next(tidy)
+
+
+def test_next_refuses_something_unreadable(scheme: Scheme) -> None:
+    with pytest.raises(ValueError, match="cannot read"):
+        scheme.next("nonsense")
+
+
+def test_end_of_the_sequence() -> None:
+    tiny = Scheme(length=2, groups=(2,), separator="")
+    last = tiny._finish(SPOKEN.characters[-1])
+    with pytest.raises(SequenceExhausted, match="last identifier"):
+        tiny.next(last)
+
+
+# ------------------------------------------------------------------ reading
+
+
+def test_reads_case_and_spacing(scheme: Scheme) -> None:
+    tidy = scheme.random()
+    messy_forms = (
+        tidy.lower(),
+        tidy.replace("-", " "),
+        f"  {tidy}  ",
+        tidy.replace("-", ""),
+    )
+    for messy in messy_forms:
+        read = scheme.parse(messy)
+        assert read.ok
+        assert read.value == tidy
+        assert read.exact
+
+
+def test_repairs_a_lookalike_and_says_so() -> None:
+    scheme = Scheme()
+    tidy = "0000-0000"
+    read = scheme.parse("OOOO-OOOO")
+    assert read.ok
+    assert read.value == tidy
+    assert len(read.repairs) == 8
+    assert not read.exact
+    assert all(r.typed == "O" and r.read_as == "0" for r in read.repairs)
+
+
+def test_repairs_report_their_position() -> None:
+    scheme = Scheme()
+    read = scheme.parse("O000-0000")
+    assert [(r.position, r.typed, r.read_as) for r in read.repairs] == [(0, "O", "0")]
+    assert "position 0" in str(read.repairs[0])
+
+
+def test_rejects_a_wrong_check_character(scheme: Scheme) -> None:
+    tidy = scheme.random()
+    flat = tidy.replace("-", "")
+    wrong = SPOKEN.characters[(SPOKEN.characters.index(flat[-1]) + 1) % 26]
+    read = scheme.parse(flat[:-1] + wrong)
+    assert not read.ok
+    assert "typing mistake" in (read.problem or "")
+
+
+def test_rejects_a_vowel(scheme: Scheme) -> None:
+    read = scheme.parse("AAAA-AAAA")
+    assert not read.ok
+    assert "vowel" in (read.problem or "")
+
+
+def test_rejects_the_wrong_length(scheme: Scheme) -> None:
+    read = scheme.parse("4KM7")
+    assert not read.ok
+    assert "8 characters" in (read.problem or "")
+
+
+@pytest.mark.parametrize("empty", [None, "", "   ", "-"])
+def test_rejects_nothing(scheme: Scheme, empty: str | None) -> None:
+    read = scheme.parse(empty)
+    assert not read.ok
+    assert read.problem
+
+
+def test_parsed_is_falsey_when_it_failed(scheme: Scheme) -> None:
+    assert not scheme.parse("nope")
+    assert scheme.parse(scheme.random())
+
+
+def test_validate_is_strict_about_repairs(scheme: Scheme) -> None:
+    assert scheme.validate("0000-0000")
+    # Readable, but only after a repair, so it is not already correct.
+    assert scheme.parse("OOOO-OOOO").ok
+    assert not scheme.validate("OOOO-OOOO")
+
+
+# ------------------------------------------------------------------ sizing
+
+
+def test_guess_odds(scheme: Scheme) -> None:
+    assert scheme.guess_odds(0) == 0
+    assert scheme.guess_odds(scheme.space) == 1.0
+    assert scheme.guess_odds(scheme.space * 2) == 1.0
+    assert 0 < scheme.guess_odds(100_000) < 1
+
+
+def test_guess_odds_refuses_nonsense(scheme: Scheme) -> None:
+    with pytest.raises(ValueError, match="negative"):
+        scheme.guess_odds(-1)
+
+
+def test_describe_mentions_the_shape(scheme: Scheme) -> None:
+    report = scheme.describe()
+    assert "XXXX-XXXX" in report
+    assert "8,031,810,176" in report
+
+
+# ------------------------------------------------------------------ no check
+
+
+def test_scheme_without_a_check_character() -> None:
+    scheme = Scheme(check=False)
+    assert scheme.body_length == scheme.length == 8
+    assert scheme.validate(scheme.random())
+    # Any well-formed string is now acceptable, because nothing verifies it.
+    assert scheme.validate("0000-0000")

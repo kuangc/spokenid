@@ -1,0 +1,19 @@
+"""Reading an identifier out loud."""
+
+from __future__ import annotations
+
+from spokenid import NATO, SPOKEN, phonetic
+
+
+def test_spells_letters_and_leaves_digits_alone() -> None:
+    assert phonetic("4KM7-PC2X") == "4 Kilo Mike 7, Papa Charlie 2 X-ray"
+
+
+def test_accepts_lowercase() -> None:
+    assert phonetic("4km7-pc2x") == phonetic("4KM7-PC2X")
+
+
+def test_every_letter_in_the_alphabet_has_a_word() -> None:
+    letters = [c for c in SPOKEN.characters if c.isalpha()]
+    assert letters
+    assert all(c in NATO for c in letters)

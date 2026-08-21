@@ -1,0 +1,95 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "spokenid"
+version = "0.1.0"
+description = "Short identifiers people can say out loud, write down, and type back correctly."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Kuang Chen" }]
+keywords = [
+    "identifier", "id", "id-generation", "human-readable", "check-digit",
+    "luhn", "base32", "crockford", "healthcare", "patient-id",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Healthcare Industry",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/kuangc/spokenid"
+Source = "https://github.com/kuangc/spokenid"
+Issues = "https://github.com/kuangc/spokenid/issues"
+Changelog = "https://github.com/kuangc/spokenid/blob/main/CHANGELOG.md"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-cov>=5",
+    "hypothesis>=6.100",
+    "mypy>=1.11",
+    "ruff>=0.6",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/spokenid"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "src"]
+addopts = "--doctest-modules --strict-markers --strict-config"
+
+[tool.coverage.run]
+source = ["spokenid"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:"]
+fail_under = 95
+show_missing = true
+
+[tool.mypy]
+strict = true
+files = ["src", "tests"]
+python_version = "3.10"
+
+[tool.ruff]
+line-length = 90
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "W",     # pycodestyle, pyflakes
+    "I",               # import sorting
+    "B",               # bugbear
+    "UP",              # pyupgrade
+    "SIM",             # simplify
+    "RUF",             # ruff-specific
+    "D",               # docstrings
+    "ANN",             # annotations
+    "S",               # bandit: common security problems
+    "PT",              # pytest style
+]
+ignore = ["D105", "D107", "D203", "D213", "ANN401"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["D103", "S101", "SLF001"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
