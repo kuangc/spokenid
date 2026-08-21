@@ -24,8 +24,9 @@ Taken = Callable[[str], bool]
 #: Characters per group when the caller does not choose. Four reads well aloud.
 PREFERRED_GROUP = 4
 
-#: Most meaningful characters reading will look at, ignoring whitespace. Far
-#: past any identifier, and it stops a pasted megabyte being scanned in full.
+#: How many non-whitespace characters reading will look at, separators
+#: included. Far past any identifier, and it stops a pasted megabyte being
+#: scanned in full. Beyond it, reading refuses rather than truncating.
 MAX_MEANINGFUL = 4096
 
 #: Longest identifier a scheme may describe. Far past anything a person would
@@ -131,8 +132,12 @@ class Scheme:
     _checker: Luhn | None = field(init=False, repr=False, compare=False, default=None)
 
     def __post_init__(self) -> None:
-        chosen = tuple(self.groups) or default_groups(self.length)
-        object.__setattr__(self, "groups", chosen)
+        # Length is checked before anything sized by it: default_groups()
+        # divides by it and then builds a tuple that big, so a nonsense length
+        # used to raise OverflowError or allocate gigabytes before reaching
+        # the guard below.
+        if not isinstance(self.length, int) or isinstance(self.length, bool):
+            raise InvalidScheme(f"length must be a whole number, not {self.length!r}")
         if self.length < 2:
             raise InvalidScheme("an identifier needs at least two characters")
         if self.length > MAX_LENGTH:
@@ -140,6 +145,8 @@ class Scheme:
                 f"an identifier of {self.length} characters is past the {MAX_LENGTH} "
                 "this handles, and nobody could read it aloud anyway"
             )
+        chosen = tuple(self.groups) or default_groups(self.length)
+        object.__setattr__(self, "groups", chosen)
         if sum(self.groups) != self.length:
             raise InvalidScheme(
                 f"groups {tuple(self.groups)} add up to {sum(self.groups)}, "
@@ -311,8 +318,9 @@ class Scheme:
         (``"ß"`` becomes ``"SS"``), which would report mistakes at positions the
         person never typed.
 
-        Nothing is counted toward the limit until after the separators come
-        out. An earlier version counted them while they were still in, so
+        Reading stops after :data:`MAX_MEANINGFUL` non-whitespace characters,
+        separators included, and says so rather than pretending the rest was
+        not there. An earlier version stopped without saying, so
         ``"0000-001X --- Jane Doe"`` shed its tail and was accepted as
         ``"0000-001X"``, which is the exact failure this library exists to
         prevent.

@@ -36,18 +36,25 @@ def python_blocks() -> list[str]:
 
 
 def _pairs(source: str) -> list[tuple[str, str]]:
-    """Every (expression, comment) pair, on one line or on two."""
+    """Every (expression, comment) pair, on one line and on the next.
+
+    Both, not either. An earlier version stopped at a trailing comment, so
+    `scheme.parse(x).exact  # already right` followed by `# True` had the prose
+    taken as the claim and the actual value never checked.
+    """
     out = []
     lines = source.splitlines()
     for number, line in enumerate(lines):
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
             continue
-        if "  #" in stripped:  # expr  # literal
+        expression = stripped
+        if "  #" in stripped:  # expr  # something
             expression, _, comment = stripped.partition("  #")
-            out.append((expression.strip(), "#" + comment))
-        elif number + 1 < len(lines) and lines[number + 1].strip().startswith("#"):
-            out.append((stripped, lines[number + 1].strip()))
+            expression = expression.strip()
+            out.append((expression, "#" + comment))
+        if number + 1 < len(lines) and lines[number + 1].strip().startswith("#"):
+            out.append((expression, lines[number + 1].strip()))
     return out
 
 
@@ -58,8 +65,10 @@ def literal_claims(source: str) -> list[tuple[str, str]]:
         expected = comment.lstrip("#").strip()
         if not expected or expected.startswith("e.g."):
             continue
-        try:  # prose comments are not literals, and are left alone
-            ast.literal_eval(expected)
+        # ast.parse rather than literal_eval, so a repr of one of the
+        # library's own dataclasses counts as a claim. Prose does not parse.
+        try:
+            ast.parse(expected, mode="eval")
         except (ValueError, SyntaxError):
             continue
         try:
@@ -98,7 +107,11 @@ def test_every_python_block_runs_and_every_claim_holds() -> None:
                 f"but it is {actual}"
             )
             checked += 1
-    assert checked >= 14, f"only {checked} outputs are actually verified"
+    # Derived, not hardcoded: every value-shaped comment on the page has to be
+    # one of the claims that just got checked, so none can be quietly dropped.
+    shown = sum(len(literal_claims(block)) for block in python_blocks())
+    assert checked == shown, f"{shown - checked} shown values were skipped"
+    assert checked >= 15, f"only {checked} outputs are verified; the page has been gutted"
 
 
 def test_printed_output_matches_the_block_that_follows() -> None:

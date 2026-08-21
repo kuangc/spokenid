@@ -8,7 +8,9 @@ drift without a failure.
 
 from __future__ import annotations
 
+import builtins
 import itertools
+import re
 from pathlib import Path
 
 import pytest
@@ -116,3 +118,101 @@ def test_the_exhaustive_substitution_count(text: str) -> None:
     checks = len(SPOKEN) ** 3 * 3 * (len(SPOKEN) - 1)
     assert 1_200_000 < checks < 1_400_000, checks
     assert "1.3 million substitutions" in text
+
+
+# --- things written as prose or tables, which running the code cannot check ---
+
+
+def test_the_alphabet_listing_is_the_actual_alphabet(text: str) -> None:
+    """It sat in a plain fence, so it could be replaced with vowels unnoticed."""
+    assert f"```\n{SPOKEN.characters}\n```" in text
+
+
+def test_the_lookalike_table_matches_the_repair_map(text: str) -> None:
+    """`| `O` | `0` |` said one thing; the code is what decides."""
+    import re
+
+    shown = dict(re.findall(r"\|\s*`(\w)`\s*\|\s*`(\w)`\s*\|", text))
+    assert shown, "the lookalike table was not found"
+    assert shown == dict(SPOKEN.repairs), (shown, dict(SPOKEN.repairs))
+
+
+def test_the_errors_table_matches_the_exception_hierarchy(text: str) -> None:
+    import re
+
+    import spokenid
+
+    rows = re.findall(r"\|[^|\n]*\|\s*`(\w+)`\s*\|\s*`(\w+)`\s*\|", text)
+    checked = 0
+    for name, builtin in rows:
+        error = getattr(spokenid, name, None)
+        if error is None or not isinstance(error, type):
+            continue
+        assert issubclass(error, spokenid.SpokenIdError), name
+        assert issubclass(error, getattr(builtins, builtin)), (name, builtin)
+        checked += 1
+    assert checked >= 4, f"only {checked} error rows were checked"
+
+
+def test_the_number_of_residual_pairs_in_prose(text: str) -> None:
+    assert len(SPOKEN.similar) == 6
+    assert "Six pairs are still in the alphabet" in text
+
+
+def test_the_column_width_in_the_storing_table(text: str) -> None:
+    import re
+
+    match = re.search(r"`varchar\((\d+)\)`", text)
+    assert match, "no column width is given"
+    assert int(match.group(1)) >= len(Scheme().random())
+
+
+def test_the_number_of_random_characters_in_prose(text: str) -> None:
+    assert Scheme().body_length == 7
+    assert "carries seven random ones" in text
+
+
+def test_the_survival_rate_in_prose(text: str) -> None:
+    """suggest() keeps roughly one candidate in twenty-six."""
+    assert len(SPOKEN) == 26
+    assert "the other twenty-five in twenty-six" in text
+
+
+def test_the_readme_points_people_at_column_not_position(text: str) -> None:
+    """Position is a string index; column is what a person counts on a form."""
+    wide = Scheme(length=10)
+    repair = wide.parse("WP2-47R-P7KO").repairs[0]
+    assert repair.column != repair.position
+    assert "Use `repair.column` when talking to a person" in text
+
+
+def test_no_link_is_relative(text: str) -> None:
+    """The README is the PyPI front page, where a relative link is dead."""
+    import re
+
+    relative = [
+        target
+        for target in re.findall(r"\]\(([^)]+)\)", text)
+        if not target.startswith(("http://", "https://", "#"))
+    ]
+    assert not relative, f"relative links will not resolve on PyPI: {relative}"
+
+
+def test_the_changelog_does_not_claim_an_unreleased_version(text: str) -> None:
+    """Nothing is published, so no heading may say it was."""
+    import subprocess
+
+    changelog = (README.parent / "CHANGELOG.md").read_text("utf-8")
+    tags = subprocess.run(
+        ["git", "tag", "-l"],  # noqa: S607
+        cwd=README.parent,
+        capture_output=True,
+        text=True,
+        check=False,
+    ).stdout.split()
+    for heading in re.findall(r"^## \[([^\]]+)\]", changelog, re.MULTILINE):
+        if heading == "Unreleased":
+            continue
+        assert f"v{heading}" in tags, (
+            f"CHANGELOG announces {heading}, but no v{heading} tag exists"
+        )

@@ -2,8 +2,8 @@
 
 [![CI](https://github.com/kuangc/spokenid/actions/workflows/ci.yml/badge.svg)](https://github.com/kuangc/spokenid/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.10%20%E2%80%93%203.14-blue)](https://github.com/kuangc/spokenid)
-[![Licence](https://img.shields.io/badge/licence-Apache--2.0-blue)](LICENSE)
-[![Dependencies](https://img.shields.io/badge/dependencies-none-brightgreen)](pyproject.toml)
+[![Licence](https://img.shields.io/badge/licence-Apache--2.0-blue)](https://github.com/kuangc/spokenid/blob/main/LICENSE)
+[![Dependencies](https://img.shields.io/badge/dependencies-none-brightgreen)](https://github.com/kuangc/spokenid/blob/main/pyproject.toml)
 
 Short identifiers people can say out loud, write on a form, and type back
 correctly, like `4KM7-PC2M`. No vowels, so an identifier can never spell a word
@@ -428,9 +428,9 @@ recomputed in `tests/test_readme_figures.py` and required to still say what they
 say. Values that change from run to run are marked `# e.g.` and are illustration
 rather than a claim.
 
-Changes are listed in [CHANGELOG.md](CHANGELOG.md). Contributions are welcome —
-see [CONTRIBUTING.md](CONTRIBUTING.md).
+Changes are listed in [CHANGELOG.md](https://github.com/kuangc/spokenid/blob/main/CHANGELOG.md). Contributions are welcome —
+see [CONTRIBUTING.md](https://github.com/kuangc/spokenid/blob/main/CONTRIBUTING.md).
 
 ## Licence
 
-Apache-2.0. See [LICENSE](LICENSE).
+Apache-2.0. See [LICENSE](https://github.com/kuangc/spokenid/blob/main/LICENSE).

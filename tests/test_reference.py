@@ -18,11 +18,18 @@ from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 
 from spokenid import SPOKEN, Scheme
+from spokenid.scheme import MAX_MEANINGFUL
 
 
 def reference_flatten(scheme: Scheme, raw: str) -> str:
-    """Drop whitespace, upper-case, drop separators. Nothing else."""
+    """Drop whitespace, upper-case, drop separators. Nothing else.
+
+    Reading gives up after MAX_MEANINGFUL non-whitespace characters, so this
+    does too, or the two would disagree on very long input.
+    """
     without_space = "".join(c for c in raw if not c.isspace())
+    if len(without_space) > MAX_MEANINGFUL:
+        return "\uffff" * (scheme.length + 1)  # stands for "refused"
     upper = "".join(c.upper() if len(c.upper()) == 1 else c for c in without_space)
     separator = scheme.separator.upper()
     return upper.replace(separator, "") if separator else upper
@@ -123,3 +130,13 @@ def test_separator_padding_alone_is_still_forgiven(padding: int) -> None:
     identifier = scheme.random()
     padded = scheme.separator * padding + identifier + scheme.separator * padding
     assert scheme.parse(padded).value == identifier
+
+
+@given(st.integers(min_value=MAX_MEANINGFUL - 12, max_value=MAX_MEANINGFUL + 12))
+@settings(max_examples=25, deadline=None)
+def test_the_two_agree_at_the_limit(padding: int) -> None:
+    """Hypothesis cannot reach 4096 characters on its own, so aim at it."""
+    scheme = Scheme()
+    identifier = scheme.random()
+    raw = scheme.separator * padding + identifier
+    assert scheme.parse(raw).value == reference_parse(scheme, raw)

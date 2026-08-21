@@ -466,3 +466,32 @@ def test_short_number_formatting_is_well_formed() -> None:
     assert _short(1) == "1.00e+0"
     assert _short(10) == "1.00e+1"
     assert _short(1234) == "1.23e+3"
+
+
+@pytest.mark.parametrize("length", ["eight", 2.5, True, None, [8]])
+def test_length_must_be_a_whole_number(length: object) -> None:
+    """default_groups() divides by length, so a bad one used to raise late."""
+    with pytest.raises(InvalidScheme, match="whole number"):
+        Scheme(length=length)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("length", [10**400, 500_000_000, 10**18])
+def test_an_enormous_length_is_refused_immediately(length: int) -> None:
+    """It used to raise OverflowError, or allocate gigabytes, before the guard."""
+    import time
+
+    started = time.perf_counter()
+    with pytest.raises(InvalidScheme, match="past the"):
+        Scheme(length=length)
+    assert time.perf_counter() - started < 0.5
+
+
+def test_column_past_the_last_group_falls_back(scheme: Scheme) -> None:
+    """_column is defensive about a position no group covers."""
+    assert scheme._column(scheme.length + 5) == scheme.length + 6
+
+
+def test_suggest_ignores_input_too_long_to_read(scheme: Scheme) -> None:
+    from spokenid.scheme import MAX_MEANINGFUL
+
+    assert scheme.suggest("0" * (MAX_MEANINGFUL + 10)) == ()

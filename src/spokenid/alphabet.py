@@ -69,7 +69,17 @@ class Alphabet:
                     "case, printable, and not whitespace"
                 )
         allowed = set(self.characters)
+        seen: set[str] = set()
         for item in self.excluded:
+            # repairs takes the last entry and explain() takes the first, so a
+            # duplicate would have the alphabet tell a person one thing and
+            # tell parse() another.
+            if item.char in seen:
+                raise InvalidScheme(
+                    f"{item.char!r} is excluded twice, so the alphabet would say "
+                    "two different things about it"
+                )
+            seen.add(item.char)
             if len(item.char) != 1:
                 raise InvalidScheme(
                     f"{item.char!r} is not a single character, so it cannot be excluded"

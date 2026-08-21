@@ -132,3 +132,38 @@ def test_check_offers_near_misses(capsys: pytest.CaptureFixture[str]) -> None:
     err = capsys.readouterr().err
     assert "did you mean" in err
     assert "0000-001X" in err
+
+
+def test_a_closed_pipe_is_quiet_for_every_subcommand() -> None:
+    """`spokenid ... | something-that-exits` must not print a traceback.
+
+    The first attempt at this only caught the case where output overflowed the
+    8 KB buffer, so eight of nine subcommands still exited 120 noisily. The
+    flush has to happen where the handler can see it.
+    """
+    import os
+    import subprocess
+    import sys
+
+    commands = [
+        ["--version"],
+        ["new", "-n", "3"],
+        ["check", "0000-0000"],
+        ["next", "0000-0000"],
+        ["say", "0000-0000"],
+        ["describe"],
+        ["alphabet"],
+        ["new", "-n", "20000"],
+    ]
+    for arguments in commands:
+        read_end, write_end = os.pipe()
+        os.close(read_end)  # the reader is gone before a byte is written
+        process = subprocess.Popen(  # noqa: S603
+            [sys.executable, "-m", "spokenid", *arguments],
+            stdout=write_end,
+            stderr=subprocess.PIPE,
+        )
+        os.close(write_end)
+        errors = (process.communicate()[1] or b"").decode()
+        assert "BrokenPipe" not in errors, (arguments, errors)
+        assert process.returncode in {0, 1, 141}, (arguments, process.returncode)

@@ -71,8 +71,45 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _abandon_output() -> None:
+    """Point both streams at nothing, so the exit flush cannot raise again."""
+    with contextlib.suppress(OSError, ValueError):
+        devnull = os.open(os.devnull, os.O_WRONLY)
+        for stream in (sys.stdout, sys.stderr):
+            with contextlib.suppress(OSError, ValueError):
+                os.dup2(devnull, stream.fileno())
+
+
 def main(argv: Sequence[str] | None = None) -> int:
-    """Run the command line. Returns the exit status."""
+    """Run the command line. Returns the exit status.
+
+    Wraps :func:`_run` so a closed pipe is quiet. The flush has to happen here
+    rather than being left to the interpreter: anything shorter than the 8 KB
+    buffer is still unwritten when the command body returns, so the failure
+    would otherwise land outside every handler and exit 120 with a traceback.
+    """
+    try:
+        status = _run(argv)
+        sys.stdout.flush()
+        sys.stderr.flush()
+    except BrokenPipeError:
+        _abandon_output()
+        return 141
+    except SystemExit:
+        # argparse exits this way for --help, --version and bad arguments,
+        # and its output is unflushed at this point too.
+        try:
+            sys.stdout.flush()
+            sys.stderr.flush()
+        except BrokenPipeError:
+            _abandon_output()
+            return 141
+        raise
+    return status
+
+
+def _run(argv: Sequence[str] | None = None) -> int:
+    """Do the work. See :func:`main`, which handles a closed pipe."""
     args = _build_parser().parse_args(argv)
 
     try:

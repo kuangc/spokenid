@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+Nothing has been released yet. Everything below ships in the first release.
+
 ### Added
 
 - `tests/test_readme_figures.py`. A reviewer smuggled nine wrong figures past
@@ -31,6 +33,19 @@ All notable changes to this project are documented here. The format follows
 - `spokenid new --plain`, and near misses on a failed `spokenid check`.
 
 ### Fixed
+
+- The broken-pipe fix only covered output large enough to overflow the 8 KB
+  buffer, so eight of nine subcommands still exited 120 with a traceback when
+  their reader went away. The flush happens where the handler can see it now,
+  both streams are redirected, and argparse's own exit path is covered. There
+  is a test.
+- `Scheme(length=...)` computed the grouping before checking the length, so an
+  enormous number raised `OverflowError` or allocated over a gigabyte before
+  reaching the guard. It is checked first, and a length that is not a whole
+  number is refused rather than failing later.
+- An `Alphabet` accepted two exclusions for the same character, after which
+  `explain()` reported the first and `parse()` applied the last. The alphabet
+  could tell a clerk `O` meant `0` while resolving it to something else.
 
 - **`parse()` silently misread input.** The early exit added to bound reading
   cost counted separator characters before they were removed, so anything of
@@ -98,11 +113,7 @@ All notable changes to this project are documented here. The format follows
 - Argument errors raised a bare `ValueError`. Every error this library raises
   now inherits from `SpokenIdError`, as the documentation claimed.
 
-## [0.1.0] - 2026-08-17
-
-First release.
-
-### Added
+### Everything else in the first release
 
 - `tests/test_readme_figures.py`. A reviewer smuggled nine wrong figures past
   the README test, because it only checked code blocks and every number written
@@ -129,5 +140,4 @@ First release.
 - A command line: `spokenid new`, `check`, `next`, `say`, `describe` and
   `alphabet`.
 
-[Unreleased]: https://github.com/kuangc/spokenid/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/kuangc/spokenid/releases/tag/v0.1.0
+[Unreleased]: https://github.com/kuangc/spokenid/commits/main/
