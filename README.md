@@ -25,7 +25,7 @@ from spokenid import Scheme
 scheme = Scheme()
 
 scheme.random()
-# '7HW2-0J46'
+# e.g. '7HW2-0J46'
 ```
 
 Someone reads that down a phone line and the clerk hears "oh" instead of zero:
@@ -33,39 +33,101 @@ Someone reads that down a phone line and the clerk hears "oh" instead of zero:
 ```python
 read = scheme.parse("7hw2 oj46")
 
-read.ok  # True
-read.value  # '7HW2-0J46'
-read.repairs  # (Repair(position=4, typed='O', read_as='0'),)
-read.exact  # False — it needed a repair, so confirm before you act on it
+read.ok
+# True
+read.value
+# '7HW2-0J46'
+read.repairs
+# (Repair(position=4, typed='O', read_as='0', column=6),)
 ```
 
-`Parsed` is truthy when it worked, so `if scheme.parse(x):` reads fine. The
-repairs are handed back rather than applied quietly, because changing an
-identifier without saying so is how the wrong record gets opened:
+`Parsed` is truthy exactly when `ok` is, so `if scheme.parse(x):` reads fine.
+
+Two different things can be wrong with what somebody types, and `exact` tells
+them apart. **Case and spacing are free**; a character swapped for one that
+looks like it is not:
+
+```python
+scheme.parse("7HW2-0J46").exact  # already right
+# True
+scheme.parse("7hw2 0j46").exact  # only case and spacing
+# True
+scheme.parse("7hw2 oj46").exact  # an O was read as a zero
+# False
+```
+
+Build the workflow on that. Exact means look it up. Not exact means read it back
+to the person first, which is why the repairs are handed to you rather than
+applied quietly:
 
 ```python
 for repair in read.repairs:
     print(
-        f"Position {repair.position}: you typed {repair.typed}, we read {repair.read_as}"
+        f"Character {repair.column}: you typed {repair.typed}, we read {repair.read_as}"
     )
 ```
 
-And when it is genuinely wrong, you get a sentence you can show someone:
+```
+Character 6: you typed O, we read 0
+```
+
+Use `repair.column` when talking to a person: it counts from one and includes
+the dashes, so it matches what they are looking at. `repair.position` indexes
+the identifier without separators, for slicing.
+
+## When it is genuinely wrong
 
 ```python
 scheme.parse("7HW2-0J4X").problem
 # 'this is not a valid identifier; check it for a typing mistake'
 ```
 
+On its own that is a dead end, with somebody standing at the counter. So ask for
+the near misses:
+
+```python
+scheme.suggest("7HW2-0J4X")
+# e.g. ('DHW2-0J4X', '7TW2-0J4X', '7HJ2-0J4X')
+```
+
+Those are the identifiers one small mistake away that the check character still
+accepts: a substitution, a swap of neighbours, or one character too few or too
+many. There are only ever about as many as the identifier is long, because the
+check character rejects the other twenty-five in twenty-six. Look them up.
+Nearly always exactly one is a record you hold, and that is the answer:
+
+```python
+def find(typed, records):
+    read = scheme.parse(typed)
+    if read.ok:
+        return records.get(read.value)
+    near = [c for c in scheme.suggest(typed) if c in records]
+    return records[near[0]] if len(near) == 1 else None
+```
+
 ## From the command line
 
 ```bash
-spokenid new -n 3        # make three
-spokenid check 7hw2-oj46 # normalise and validate; exit 1 if it is wrong
-spokenid next 0000-0000  # the next one in a counted sequence
-spokenid say 4KM7-PC2M   # 4 Kilo Mike 7, Papa Charlie 2 Mike
-spokenid alphabet        # the character set, and why each one is in it
-spokenid describe        # how big the space is, and how guessable
+spokenid new -n 3               # make three
+spokenid new --plain            # no dashes, for piping
+spokenid check 7hw2-oj46        # normalise and validate; exit 1 if it is wrong
+spokenid next 0000-0000         # the next in a counted sequence
+spokenid next 0000-0000 --step 7
+spokenid say 4KM7-PC2M          # 4 Kilo Mike 7, Papa Charlie 2 Mike
+spokenid alphabet               # the character set, and why each one is in it
+spokenid describe --members 250000
+```
+
+`new`, `check`, `next` and `describe` all take `--length N` and `--no-check`.
+`check` writes the identifier to stdout and any repairs or near misses to
+stderr, so it pipes cleanly. A failed `check` suggests near misses too:
+
+```console
+$ spokenid check 0000-001W
+this is not a valid identifier; check it for a typing mistake
+  did you mean H000-001W?
+  ...
+  did you mean 0000-001X?
 ```
 
 ## Storing them
@@ -78,8 +140,8 @@ any case, and `value` always comes back in the canonical dashed form.
 
 | | |
 |---|---|
-| Column type | `varchar(16)` is roomy for the default; the default is 9 characters including the dash |
-| Length | `len(scheme.random())` counts the separator. `scheme.length` does not |
+| Column type | `varchar(16)` is roomy for the default, which is 9 characters including the dash |
+| Length | `scheme.length` is 8 and excludes the separator; `len(scheme.random())` is 9 and includes it |
 | Uniqueness | Put a unique index on the column. That index is what actually guarantees uniqueness, not this library |
 | Lookup | Run the user's input through `parse()` first, then query on `.value`. Never query on raw input |
 | Case | Always store uppercase. `parse()` upper-cases for you |
@@ -136,7 +198,7 @@ from spokenid import Alphabet, Scheme
 digits = Alphabet.derive(drop_vowels=False, lookalikes={}, pool="0123456789")
 
 Scheme(alphabet=digits, length=6).random()
-# '681206'
+# e.g. '406-603'
 ```
 
 `derive` removes the vowels unless you say otherwise, then removes every key of
@@ -204,7 +266,7 @@ print(Scheme(length=10).describe([100_000]))
 
 ```
 26^9 = 5,429,503,678,976 identifiers (10 characters, shown as XXX-XXX-XXXX)
-  at    100,000 members, a blind guess names a real one 1 in 54,295,037
+  at    100,000 members, a blind guess names a real one 1 in 54,295,036
 ```
 
 That last column is the number to choose by. A repeat drawn at random is not a
@@ -267,8 +329,38 @@ phonetic("4KM7-PC2M")
 # '4 Kilo Mike 7, Papa Charlie 2 Mike'
 ```
 
-This is a plain NATO speller and does not validate anything, so run input
-through `parse()` before you read it back to someone.
+NATO by default, which is not much use where those are not the words people
+know. Pass your own:
+
+```python
+phonetic("4K", words={"K": "Kilimanjaro"})
+# '4 Kilimanjaro'
+```
+
+It does not validate anything, so run input through `parse()` before reading it
+back to someone.
+
+## Everything that is public
+
+If it is not in this table it is an internal detail, and it may change.
+
+| Name | What it is |
+|---|---|
+| `Scheme` | The shape of an identifier, and the two ways to issue one |
+| `Scheme.random` / `.next` / `.first` | Issue one |
+| `Scheme.parse` / `.validate` / `.suggest` | Read one back |
+| `Scheme.describe` / `.space` / `.guess_odds` | Size a scheme before choosing |
+| `Parsed` | What `parse()` returns: `ok`, `value`, `repairs`, `problem`, `exact` |
+| `Repair` | One character read as another: `column`, `position`, `typed`, `read_as` |
+| `Alphabet` / `Alphabet.derive` | The character set, and how to build another |
+| `SPOKEN` | The default alphabet |
+| `Alphabet.explain` / `.repairs` / `.similar` / `.sorts_by_age` | Ask it about itself |
+| `phonetic` / `NATO` | Spell one for reading aloud |
+| `Luhn` | The check character, if you want it on its own |
+| `default_groups` | How a length turns into groups |
+| `VOWELS` / `LOOKALIKES` / `SIMILAR` | The rules the default alphabet is built from |
+| `SpokenIdError` and its subclasses | See the errors table above |
+| `Excluded` | One character that was left out, and why |
 
 ## When not to use this
 
@@ -284,10 +376,16 @@ through `parse()` before you read it back to someone.
 
 ## Known limits
 
-Six pairs are still in the alphabet that a careless reader could confuse:
-`0/Q`, `0/D`, `7/T`, `V/W`, `4/9`, `5/6`. Excluding them costs more characters
-than it buys, and exclusions must come in pairs to keep the count even. The check
-character is what covers them.
+Six pairs are still in the alphabet that a careless reader could confuse.
+Excluding them costs more characters than it buys, and exclusions have to come
+in pairs to keep the count even, so the check character covers them instead.
+They are not just a note here — `suggest()` uses them to rank a near miss that
+looks like a misreading above one that does not:
+
+```python
+sorted("".join(sorted(pair)) for pair in SPOKEN.similar)
+# ['0D', '0Q', '49', '56', '7T', 'VW']
+```
 
 ## Prior art
 

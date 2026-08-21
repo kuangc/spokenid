@@ -6,6 +6,23 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `Scheme.suggest()`, which answers the question `parse()` leaves open. When
+  somebody mistypes an identifier at a counter, it returns the valid
+  identifiers one mistake away. The check character keeps that list short:
+  about one candidate per character, rather than a haystack.
+- `Repair.column`, the position counting from one and including separators,
+  which is the number to show a person. `Repair.position` still indexes the
+  identifier for slicing.
+- `Alphabet.similar` and `SIMILAR`: the pairs that stay confusable inside an
+  alphabet. `suggest()` ranks a near miss that looks like a misreading above
+  one that does not, and the README's list of known limits is now read from
+  the code rather than typed out beside it.
+- `phonetic(words=...)`, so somewhere NATO is not the words people know can
+  pass its own.
+- `spokenid new --plain`, and near misses on a failed `spokenid check`.
+
 ### Fixed
 
 - A separator was checked against the alphabet with `in`, which is a substring

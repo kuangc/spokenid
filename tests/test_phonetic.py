@@ -22,3 +22,11 @@ def test_every_letter_in_the_alphabet_has_a_word() -> None:
 def test_an_empty_separator_spells_the_whole_string() -> None:
     """Scheme(separator="") is legal, so pairing the two must not raise."""
     assert phonetic("4KM7", separator="") == "4 Kilo Mike 7"
+
+
+def test_a_local_word_list_replaces_nato() -> None:
+    assert phonetic("4K", words={"K": "Kilimanjaro"}) == "4 Kilimanjaro"
+
+
+def test_a_character_with_no_word_is_spoken_as_itself() -> None:
+    assert phonetic("4K", words={}) == "4 K"

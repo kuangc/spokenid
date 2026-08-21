@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 
-from .alphabet import LOOKALIKES, SPOKEN, VOWELS, Alphabet, Excluded
+from .alphabet import LOOKALIKES, SIMILAR, SPOKEN, VOWELS, Alphabet, Excluded
 from .check import Luhn
 from .errors import (
     InvalidArgument,
@@ -26,6 +26,7 @@ __version__ = "0.1.0"
 __all__ = [
     "LOOKALIKES",
     "NATO",
+    "SIMILAR",
     "SPOKEN",
     "VOWELS",
     "Alphabet",

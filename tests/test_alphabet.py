@@ -132,3 +132,16 @@ def test_lookalikes_that_are_also_vowels_are_described_as_lookalikes() -> None:
     assert reasons["O"] == "lookalike"
     assert reasons["A"] == "vowel"
     assert len([r for r in reasons.values() if r == "lookalike"]) == len(SPOKEN.repairs)
+
+
+def test_the_documented_residual_pairs_are_the_real_ones() -> None:
+    """The README lists these as known limits. Keep code and prose in step."""
+    assert {"".join(sorted(p)) for p in SPOKEN.similar} == {
+        "0D",
+        "0Q",
+        "49",
+        "56",
+        "7T",
+        "VW",
+    }
+    assert all(pair <= set(SPOKEN.characters) for pair in SPOKEN.similar)

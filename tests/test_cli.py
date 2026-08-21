@@ -37,7 +37,7 @@ def test_check_reports_repairs_on_stderr(capsys: pytest.CaptureFixture[str]) -> 
     assert main(["check", "OOOO-OOOO"]) == 0
     captured = capsys.readouterr()
     assert captured.out.strip() == "0000-0000"
-    assert "read 'O' as '0'" in captured.err
+    assert "'O' read as '0'" in captured.err
 
 
 def test_check_fails_loudly(capsys: pytest.CaptureFixture[str]) -> None:
@@ -110,3 +110,25 @@ def test_python_dash_m_works() -> None:
         check=True,
     )
     assert Scheme().validate(finished.stdout.strip())
+
+
+@pytest.mark.parametrize("count", ["0", "-1"])
+def test_new_refuses_a_nonsense_count(
+    capsys: pytest.CaptureFixture[str], count: str
+) -> None:
+    assert main(["new", "-n", count]) == 1
+    assert "at least 1" in capsys.readouterr().err
+
+
+def test_new_plain_omits_the_separator(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["new", "--plain"]) == 0
+    printed = capsys.readouterr().out.strip()
+    assert "-" not in printed
+    assert Scheme().validate(printed)
+
+
+def test_check_offers_near_misses(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["check", "0000-001W"]) == 1
+    err = capsys.readouterr().err
+    assert "did you mean" in err
+    assert "0000-001X" in err

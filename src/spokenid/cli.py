@@ -43,6 +43,9 @@ def _build_parser() -> argparse.ArgumentParser:
     new = sub.add_parser("new", help="make one or more identifiers")
     shared(new)
     new.add_argument("-n", "--count", type=int, default=1, help="how many (default 1)")
+    new.add_argument(
+        "--plain", action="store_true", help="no separator, for piping elsewhere"
+    )
 
     check = sub.add_parser("check", help="read an identifier and say whether it is valid")
     shared(check)
@@ -72,19 +75,28 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     try:
         if args.command == "new":
+            if args.count < 1:
+                print("--count must be at least 1", file=sys.stderr)
+                return 1
             scheme = _scheme(args)
-            for _ in range(max(1, args.count)):
-                print(scheme.random())
+            for _ in range(args.count):
+                identifier = scheme.random()
+                print(
+                    identifier.replace(scheme.separator, "") if args.plain else identifier
+                )
             return 0
 
         if args.command == "check":
-            read = _scheme(args).parse(args.identifier)
+            scheme = _scheme(args)
+            read = scheme.parse(args.identifier)
             if not read.ok:
                 print(read.problem, file=sys.stderr)
+                for candidate in scheme.suggest(args.identifier):
+                    print(f"  did you mean {candidate}?", file=sys.stderr)
                 return 1
             print(read.value)
             for repair in read.repairs:
-                print(f"  read {repair.typed!r} as {repair.read_as!r}", file=sys.stderr)
+                print(f"  {repair}", file=sys.stderr)
             return 0
 
         if args.command == "next":

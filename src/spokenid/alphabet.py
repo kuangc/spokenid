@@ -20,6 +20,14 @@ LOOKALIKES: Mapping[str, str] = MappingProxyType(
 )
 
 
+#: Pairs that still look alike once both are inside an alphabet. Dropping one of
+#: each would cost more characters than it buys, so the check character covers
+#: them instead. Used to rank near misses in :meth:`Scheme.suggest`.
+SIMILAR: frozenset[frozenset[str]] = frozenset(
+    frozenset(pair) for pair in ("0Q", "0D", "7T", "VW", "49", "56")
+)
+
+
 @dataclass(frozen=True, slots=True)
 class Excluded:
     """A character that cannot appear in an identifier, and the reason."""
@@ -142,6 +150,16 @@ class Alphabet:
         return MappingProxyType(
             {i.char: i.reads_as for i in self.excluded if i.reads_as is not None}
         )
+
+    @property
+    def similar(self) -> frozenset[frozenset[str]]:
+        """Pairs still in this alphabet that a careless reader could confuse.
+
+        >>> sorted("".join(sorted(p)) for p in SPOKEN.similar)
+        ['0D', '0Q', '49', '56', '7T', 'VW']
+        """
+        allowed = set(self.characters)
+        return frozenset(pair for pair in SIMILAR if pair <= allowed)
 
     @property
     def sorts_by_age(self) -> bool:

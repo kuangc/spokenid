@@ -60,14 +60,21 @@ class Repair:
     """One character that was read as a different one."""
 
     position: int
-    """Index within the identifier, ignoring separators."""
+    """Index into the identifier, counting from zero and ignoring separators."""
     typed: str
     """What the person actually entered."""
     read_as: str
     """What it was taken to mean."""
+    column: int = 0
+    """Which character it is when written out, counting from one, separators included.
+
+    This is the number to show a person. ``position`` is for indexing; a clerk
+    looking at ``WP2-47R-P7KO`` on a form counts the ``O`` as the twelfth
+    character, not the ninth.
+    """
 
     def __str__(self) -> str:
-        return f"position {self.position}: {self.typed!r} read as {self.read_as!r}"
+        return f"character {self.column}: {self.typed!r} read as {self.read_as!r}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,6 +172,15 @@ class Scheme:
             out.append(flat[start : start + size])
             start += size
         return self.separator.join(out)
+
+    def _column(self, position: int) -> int:
+        """Where ``position`` falls in the written form, counting from one."""
+        seen = 0
+        for group_number, size in enumerate(self.groups):
+            if position < seen + size:
+                return position + 1 + group_number * len(self.separator)
+            seen += size
+        return position + 1
 
     def _finish(self, body: str) -> str:
         if self._checker is not None:
@@ -327,7 +343,7 @@ class Scheme:
             reads_as = table.get(char)
             if reads_as is None:
                 return Parsed(False, problem=self.alphabet.explain(char))
-            repairs.append(Repair(position, char, reads_as))
+            repairs.append(Repair(position, char, reads_as, self._column(position)))
             out.append(reads_as)
 
         fixed = "".join(out)
@@ -337,6 +353,85 @@ class Scheme:
                 problem="this is not a valid identifier; check it for a typing mistake",
             )
         return Parsed(True, self._group(fixed), tuple(repairs))
+
+    def suggest(self, raw: object, limit: int = 10) -> tuple[str, ...]:
+        """Valid identifiers that are one small mistake away from ``raw``.
+
+        For when :meth:`parse` says no and somebody is standing at the counter.
+        Tries every single-character substitution, every swap of neighbouring
+        characters, and one insertion or deletion if the length is out by one,
+        keeping only the results whose check character agrees.
+
+        The check character is what makes this short: out of every string one
+        edit away, only about one in twenty-six survives, so the answer is a
+        handful of candidates rather than a haystack. Look them up. Usually
+        exactly one is a record you hold, and that is the answer.
+
+        >>> scheme = Scheme()
+        >>> scheme.parse("0000-001W").ok          # a genuine typo
+        False
+        >>> "0000-001X" in scheme.suggest("0000-001W")
+        True
+
+        Returns an empty tuple when the scheme has no check character, because
+        then every well-formed string is already valid and nothing is a
+        near miss.
+        """
+        if limit < 1:
+            raise InvalidArgument("limit must be at least 1")
+        if self._checker is None or not isinstance(raw, str) or len(raw) > MAX_INPUT:
+            return ()
+
+        flat = self._flatten(raw)
+        table = self.alphabet.repairs
+        flat = "".join(table.get(char, char) for char in flat)
+        chars = self.alphabet.characters
+
+        similar = self.alphabet.similar
+        # Rank by how likely the mistake was, not by where it sits in the
+        # string: a character swapped for one that looks like it beats a
+        # character swapped for an unrelated one.
+        found: dict[str, int] = {}
+
+        def keep(candidate: str, rank: int) -> None:
+            if len(candidate) != self.length or self._checker is None:
+                return
+            if candidate == flat or not self._checker.verify(candidate):
+                return
+            grouped = self._group(candidate)
+            if rank < found.get(grouped, rank + 1):
+                found[grouped] = rank
+
+        if len(flat) == self.length:
+            for position in range(self.length):
+                typed = flat[position]
+                for replacement in chars:
+                    if replacement == typed:
+                        continue
+                    looks_alike = frozenset((typed, replacement)) in similar
+                    keep(
+                        flat[:position] + replacement + flat[position + 1 :],
+                        0 if looks_alike else 2,
+                    )
+            for position in range(self.length - 1):
+                if flat[position] != flat[position + 1]:
+                    keep(
+                        flat[:position]
+                        + flat[position + 1]
+                        + flat[position]
+                        + flat[position + 2 :],
+                        1,
+                    )
+        elif len(flat) == self.length - 1:
+            for position in range(len(flat) + 1):
+                for extra in chars:
+                    keep(flat[:position] + extra + flat[position:], 1)
+        elif len(flat) == self.length + 1:
+            for position in range(len(flat)):
+                keep(flat[:position] + flat[position + 1 :], 1)
+
+        ranked = sorted(found, key=lambda candidate: found[candidate])
+        return tuple(ranked[:limit])
 
     def validate(self, raw: object) -> bool:
         """True when ``raw`` is already a correct identifier, needing no repair."""
@@ -367,6 +462,8 @@ class Scheme:
             f"({self.length} characters, shown as {shape})"
         ]
         for count in members:
+            if count < 0:
+                raise InvalidArgument("members cannot be negative")
             # Integer division, because the float form underflows to zero for a
             # large space and then reports a finite risk as "never".
             if count <= 0:

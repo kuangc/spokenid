@@ -64,6 +64,7 @@ include = ["src", "tests", "README.md", "LICENSE", "CHANGELOG.md", "pyproject.to
 [tool.pytest.ini_options]
 testpaths = ["tests", "src"]
 addopts = "--doctest-modules --strict-markers --strict-config"
+filterwarnings = ["error"]
 
 [tool.coverage.run]
 source = ["spokenid"]

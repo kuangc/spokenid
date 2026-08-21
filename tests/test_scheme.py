@@ -177,7 +177,7 @@ def test_repairs_report_their_position() -> None:
     scheme = Scheme()
     read = scheme.parse("O000-0000")
     assert [(r.position, r.typed, r.read_as) for r in read.repairs] == [(0, "O", "0")]
-    assert "position 0" in str(read.repairs[0])
+    assert "character 1" in str(read.repairs[0])
 
 
 def test_rejects_a_wrong_check_character(scheme: Scheme) -> None:
@@ -369,3 +369,18 @@ def test_argument_errors_are_library_errors(scheme: Scheme, call: object) -> Non
         call(scheme)  # type: ignore[operator]
     with pytest.raises(InvalidArgument):
         call(scheme)  # type: ignore[operator]
+
+
+def test_repair_column_counts_the_way_a_person_reads(scheme: Scheme) -> None:
+    """Position indexes the string; column is what somebody counts on a form."""
+    wide = Scheme(length=10)
+    read = wide.parse("WP2-47R-P7KO")
+    assert [(r.position, r.column) for r in read.repairs] == [(9, 12)]
+    assert "character 12" in str(read.repairs[0])
+
+
+def test_describe_refuses_a_negative_population(scheme: Scheme) -> None:
+    from spokenid import InvalidArgument
+
+    with pytest.raises(InvalidArgument, match="negative"):
+        scheme.describe([-5])
