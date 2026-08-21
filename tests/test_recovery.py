@@ -95,3 +95,68 @@ def test_the_readme_table_matches() -> None:
     assert "| `random()` | 100% | 100% |" in text
     assert "| `next(step=1)` | 64% | 100% |" in text
     assert "The one that was meant is always among them" in text
+
+
+def _undetected_transpositions(issue: Issuer, members: int) -> tuple[int, int]:
+    """Returns (swaps the check character missed, how many hit another record)."""
+    scheme = Scheme()
+    issued: list[str] = []
+    current = None
+    for _ in range(members):
+        current = issue(scheme, current)
+        issued.append(current)
+    held = set(issued)
+
+    missed = landed_on_somebody = 0
+    for real in issued:
+        flat = real.replace("-", "")
+        for position in range(len(flat) - 1):
+            if flat[position] == flat[position + 1]:
+                continue
+            swapped = (
+                flat[:position]
+                + flat[position + 1]
+                + flat[position]
+                + flat[position + 2 :]
+            )
+            read = scheme.parse(swapped)
+            if not read.ok:
+                continue  # the check character caught it
+            missed += 1
+            if read.value != real and read.value in held:
+                landed_on_somebody += 1
+    return missed, landed_on_somebody
+
+
+def test_drawing_at_random_never_lands_on_another_record() -> None:
+    """The reason the README tells people to use random() by default.
+
+    The check character misses the same fraction of swaps however you issue.
+    What differs is whether the miss is somebody else's identifier.
+    """
+    missed, landed = _undetected_transpositions(_random, 2000)
+    assert missed > 0, "the check character caught everything; widen the test"
+    assert landed == 0, f"{landed} of {missed} undetected swaps hit a real record"
+
+
+def test_counting_densely_lands_on_another_record_often() -> None:
+    """Pinned so the README's warning cannot quietly become untrue."""
+    missed, landed = _undetected_transpositions(_counted, 2000)
+    assert missed > 0
+    assert landed / missed > 0.2, (
+        f"only {landed}/{missed} landed on a record; the README warns it is much higher"
+    )
+
+
+def test_gaps_remove_almost_all_of_it() -> None:
+    missed, landed = _undetected_transpositions(_gapped, 2000)
+    assert missed > 0
+    assert landed / missed < 0.1, f"{landed}/{missed} landed on a record"
+
+
+def test_the_readme_carries_the_warning() -> None:
+    from pathlib import Path
+
+    text = (Path(__file__).resolve().parent.parent / "README.md").read_text("utf-8")
+    assert "Why counting makes a mistyped identifier dangerous" in text
+    assert "Use `random()` unless you have a reason not to" in text

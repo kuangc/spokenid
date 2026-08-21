@@ -130,15 +130,12 @@ def test_the_alphabet_listing_is_the_actual_alphabet(text: str) -> None:
 
 def test_the_lookalike_table_matches_the_repair_map(text: str) -> None:
     """`| `O` | `0` |` said one thing; the code is what decides."""
-    import re
-
     shown = dict(re.findall(r"\|\s*`(\w)`\s*\|\s*`(\w)`\s*\|", text))
     assert shown, "the lookalike table was not found"
     assert shown == dict(SPOKEN.repairs), (shown, dict(SPOKEN.repairs))
 
 
 def test_the_errors_table_matches_the_exception_hierarchy(text: str) -> None:
-    import re
 
     import spokenid
 
@@ -160,7 +157,6 @@ def test_the_number_of_residual_pairs_in_prose(text: str) -> None:
 
 
 def test_the_column_width_in_the_storing_table(text: str) -> None:
-    import re
 
     match = re.search(r"`varchar\((\d+)\)`", text)
     assert match, "no column width is given"
@@ -188,8 +184,6 @@ def test_the_readme_points_people_at_column_not_position(text: str) -> None:
 
 def test_no_link_is_relative(text: str) -> None:
     """The README is the PyPI front page, where a relative link is dead."""
-    import re
-
     relative = [
         target
         for target in re.findall(r"\]\(([^)]+)\)", text)
@@ -198,53 +192,13 @@ def test_no_link_is_relative(text: str) -> None:
     assert not relative, f"relative links will not resolve on PyPI: {relative}"
 
 
-def test_the_changelog_does_not_claim_an_unreleased_version(text: str) -> None:
-    """Nothing is published, so no heading may say it was."""
-    import subprocess
+def test_the_changelog_has_an_unreleased_section(text: str) -> None:
+    """Release-time checks live in release.yml, where the tag exists.
 
+    They used to shell out to `git tag -l` from here, which fails in CI:
+    actions/checkout does not fetch tags for a branch or pull-request build, so
+    the suite saw an empty tag list and demanded the pre-release wording even
+    after a release. Tagging would have turned main red permanently.
+    """
     changelog = (README.parent / "CHANGELOG.md").read_text("utf-8")
-    tags = subprocess.run(
-        ["git", "tag", "-l"],  # noqa: S607
-        cwd=README.parent,
-        capture_output=True,
-        text=True,
-        check=False,
-    ).stdout.split()
-    headings = re.findall(r"^## \[([^\]]+)\]", changelog, re.MULTILINE)
-    for heading in headings:
-        if heading == "Unreleased":
-            continue
-        assert f"v{heading}" in tags, (
-            f"CHANGELOG announces {heading}, but no v{heading} tag exists"
-        )
-    # And the other way: a release with no entry leaves the Changelog link on
-    # PyPI reading "nothing has been released yet".
-    for tag in tags:
-        if not tag.startswith("v"):
-            continue
-        assert tag[1:] in headings, (
-            f"{tag} is tagged, but CHANGELOG has no [{tag[1:]}] section"
-        )
-
-
-def test_the_install_line_is_true_once_something_is_published(text: str) -> None:
-    """This README becomes the PyPI page, so it cannot say it is not on PyPI."""
-    import subprocess
-
-    tags = subprocess.run(
-        ["git", "tag", "-l", "v*"],  # noqa: S607
-        cwd=README.parent,
-        capture_output=True,
-        text=True,
-        check=False,
-    ).stdout.split()
-    if not tags:
-        assert "Not on PyPI yet" in text, (
-            "nothing is released, so the install section should say so"
-        )
-        return
-    assert "Not on PyPI yet" not in text, (
-        f"{tags[-1]} is tagged; the install section still says the package is "
-        "not on PyPI, and that text is what renders on the PyPI page"
-    )
-    assert "pip install spokenid" in text
+    assert "## [Unreleased]" in changelog

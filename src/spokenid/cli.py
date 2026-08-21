@@ -136,8 +136,12 @@ def _run(argv: Sequence[str] | None = None) -> int:
                 print("--count must be at least 1", file=sys.stderr)
                 return 1
             scheme = _scheme(args)
+            # random() draws once; without a uniqueness check it can repeat.
+            # A batch printed by one command should not contain a duplicate.
+            issued: set[str] = set()
             for _ in range(args.count):
-                identifier = scheme.random()
+                identifier = scheme.random(taken=issued.__contains__)
+                issued.add(identifier)
                 print(
                     identifier.replace(scheme.separator, "") if args.plain else identifier
                 )

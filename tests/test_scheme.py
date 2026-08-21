@@ -502,3 +502,24 @@ def test_group_sizes_must_be_whole_numbers(groups: object) -> None:
     """sum() used to raise TypeError before any friendly message."""
     with pytest.raises(InvalidScheme, match="whole number"):
         Scheme(length=8, groups=groups)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("check", [None, "no", 1, 0, ""])
+def test_check_must_be_on_or_off(check: object) -> None:
+    """A truthy value used to quietly give you a scheme with no check digit."""
+    with pytest.raises(InvalidScheme, match="on or off"):
+        Scheme(check=check)  # type: ignore[arg-type]
+
+
+def test_random_without_a_uniqueness_check_can_repeat(scheme: Scheme) -> None:
+    """The README used to say it retries. It only retries when asked."""
+    small = Scheme(length=3, groups=(3,), separator="")
+    drawn = [small.random() for _ in range(200)]
+    assert len(set(drawn)) < len(drawn), "expected repeats from a 676-wide space"
+    unique = []
+    seen: set[str] = set()
+    for _ in range(200):
+        got = small.random(taken=seen.__contains__)
+        seen.add(got)
+        unique.append(got)
+    assert len(set(unique)) == len(unique)

@@ -145,3 +145,9 @@ def test_the_documented_residual_pairs_are_the_real_ones() -> None:
         "VW",
     }
     assert all(pair <= set(SPOKEN.characters) for pair in SPOKEN.similar)
+
+
+def test_a_lookalike_outside_the_pool_is_refused() -> None:
+    """It used to be dropped in silence, so the caller's intent vanished."""
+    with pytest.raises(InvalidScheme, match="not in the pool"):
+        Alphabet.derive(pool="0123456789", lookalikes={"Q": "0"})

@@ -145,6 +145,11 @@ class Scheme:
                 f"an identifier of {self.length} characters is past the {MAX_LENGTH} "
                 "this handles, and nobody could read it aloud anyway"
             )
+        if not isinstance(self.check, bool):
+            raise InvalidScheme(
+                f"check is on or off, not {self.check!r}; a truthy value would "
+                "quietly give you a scheme with no check character"
+            )
         chosen = tuple(self.groups) or default_groups(self.length)
         object.__setattr__(self, "groups", chosen)
         # Types before arithmetic: sum() on a group of strings raises TypeError
@@ -231,8 +236,15 @@ class Scheme:
     def random(self, taken: Taken | None = None, attempts: int = 10) -> str:
         """Draw a new identifier at random.
 
-        ``taken`` is asked whether a candidate is already in use. Supply the
-        check yourself so this library never needs to know about your database::
+        **Without ``taken`` this can return an identifier you already issued.**
+        It draws once and hands the result back; there is nothing for it to
+        check against. At the sizes in :meth:`describe` that is common enough
+        to see: five thousand six-character identifiers repeat about two times
+        in three batches.
+
+        ``taken`` is asked whether a candidate is already in use, and is what
+        makes the result unique. Supply the check yourself so this library never
+        needs to know about your database::
 
             scheme.random(taken=lambda x: Member.objects.filter(id=x).exists())
 
@@ -271,9 +283,20 @@ class Scheme:
 
             scheme.next(previous, step=random.randint(1, 50))
 
-        This assumes one writer. Two processes that read the same stored value
-        both get the same answer, so whatever holds the last issued identifier
-        has to serialise access to it, with a row lock or a single sequence.
+        **Counting has a cost that is not about collisions.** No check
+        character catches every mistake, and counted identifiers sit next to
+        each other, so a mistyped one is often another identifier you issued.
+        Measured over a register of five thousand: of the neighbour swaps the
+        check character misses, half land on another real record when counting
+        with ``step=1``, and none do when drawing at random. When that happens
+        :meth:`parse` reports success with no repairs, because it was handed a
+        perfectly good identifier belonging to somebody else. Passing a random
+        ``step`` removes almost all of it; see the README.
+
+        This also assumes one writer. Two processes that read the same stored
+        value both get the same answer, so whatever holds the last issued
+        identifier has to serialise access to it, with a row lock or a single
+        sequence.
 
         Raises :class:`~spokenid.Unreadable` if ``previous`` is not an
         identifier, and :class:`~spokenid.SequenceExhausted` at the end.

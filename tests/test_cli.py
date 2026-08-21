@@ -167,3 +167,13 @@ def test_a_closed_pipe_is_quiet_for_every_subcommand() -> None:
         errors = (process.communicate()[1] or b"").decode()
         assert "BrokenPipe" not in errors, (arguments, errors)
         assert process.returncode in {0, 1, 141}, (arguments, process.returncode)
+
+
+def test_a_batch_never_contains_the_same_identifier_twice(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """random() draws once; a batch from one command still has to be unique."""
+    assert main(["new", "-n", "300", "--length", "4"]) == 0
+    printed = capsys.readouterr().out.split()
+    assert len(printed) == 300
+    assert len(set(printed)) == 300

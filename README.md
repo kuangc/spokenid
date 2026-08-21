@@ -254,20 +254,63 @@ scheme.next("0000-0000")
 ```
 
 Counted identifiers sort into the order they were issued, which is useful when
-they are filed on paper.
+they are filed on paper. **They also carry a cost that has nothing to do with
+collisions, and it is the most important thing on this page.**
 
-Leaving gaps also helps when somebody mistypes one; see the table above. Two
-things to know. **This assumes a single writer**: two processes that read the
-same stored value both get the same answer, so whatever holds the last issued
-identifier has to serialise access to it, with a row lock or a database sequence.
-And **counted identifiers are guessable**, since holding one means holding the
-next. Leaving gaps helps, and costs neither the ordering nor the guarantee:
+### Why counting makes a mistyped identifier dangerous
+
+No check character catches everything. This one misses about three swaps of
+neighbouring characters in a thousand. That rate is the same however you issue.
+
+What changes is where the miss lands. Identifiers drawn at random sit far apart
+in a space of eight billion, so a corrupted one is almost never anybody's.
+Counted identifiers sit next to each other, so a corrupted one very often *is*
+somebody's.
+
+Every adjacent transposition of every card, in a register of five thousand:
+
+| Issued by | Missed by the check character | ...and it was another real patient |
+|---|---:|---:|
+| `random()` | 89 | **0** |
+| `next(step=1)` | 55 | **28** — half of them |
+| `next(step=random.randint(1, 50))` | 75 | **0** |
+
+When that happens, `parse()` reports `ok=True`, `exact=True`, `repairs=()` and
+no problem, because as far as the scheme can tell it was handed a perfectly good
+identifier. It was. It was somebody else's.
+
+A whole day of a clinic: five thousand patients, forty thousand lookups, a
+realistic mix of clean entries, wrong case, confusable characters, single
+typos, transpositions, dropped and doubled characters:
+
+| Issued by | Right record | **Wrong record** | Wrong, with no warning |
+|---|---:|---:|---:|
+| `random()` | 95.97% | **0.000%** | 0.000% |
+| `next(step=1)` | 88.80% | **0.637%** | 0.035% |
+| `next(step=random.randint(1, 50))` | 94.85% | **0.135%** | 0.003% |
+
+So:
+
+- **Use `random()` unless you have a reason not to.** It is the safe default,
+  and the reason is this table rather than anything about collisions.
+- **If you need identifiers to sort by age, leave gaps.** It keeps the ordering
+  and the no-collision guarantee, and removes almost all of the risk.
+- **Use `step=1` only where a dense unbroken sequence is itself the point**, a
+  paper register where a missing number has to be visible, and where somebody
+  checks the name on the record before acting on it.
+
+Leaving gaps is one argument:
 
 ```python
 import random
 
 scheme.next("0000-001X", step=random.randint(1, 50))
 ```
+
+One more thing about counting: **it assumes a single writer.** Two processes
+that read the same stored value both get the same answer, so whatever holds the
+last issued identifier has to serialise access to it, with a row lock or a
+database sequence.
 
 ## Choosing the length
 
@@ -301,9 +344,24 @@ print(Scheme(length=10).describe([100_000]))
   at    100,000 members, a blind guess names a real one 1 in 54,295,036
 ```
 
-That last column is the number to choose by. A repeat drawn at random is not a
-failure, because `random()` simply draws again and nobody sees it. An identifier
-that is easy to guess is a way to reach someone else's record.
+That last column is the number to choose by, once you are handling repeats. An
+identifier that is easy to guess is a way to reach someone else's record, and
+no retry saves you from that.
+
+Repeats are your job, and `random()` will not do it for you unless you ask:
+
+```python
+already_issued = set()
+
+identifier = scheme.random(taken=already_issued.__contains__)
+already_issued.add(identifier)
+```
+
+Without `taken` it draws once and hands back whatever came up, because there is
+nothing for it to check against. At five thousand six-character identifiers,
+about two batches in three contain a repeat. The command line de-duplicates
+within a single `spokenid new -n N`, but it cannot know what you issued
+yesterday.
 
 Note that the check character uses one of your characters, so an eight-character
 identifier carries seven random ones.

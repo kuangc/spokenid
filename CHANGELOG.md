@@ -18,13 +18,6 @@ Nothing has been released yet. Everything below ships in the first release.
   the built wheel from a clean environment before it publishes anything. It
   used to build and publish without a single test.
 
-- `tests/test_readme_figures.py`. A reviewer smuggled nine wrong figures past
-  the README test, because it only checked code blocks and every number written
-  in a sentence was unchecked. The figures are recomputed from the library now,
-  and the same nine changes all fail. Values shown as `# comment` are compared
-  whether they sit on the same line or the next, and `$ spokenid` blocks are
-  executed rather than taken on trust.
-
 - `Scheme.suggest()`, which answers the question `parse()` leaves open. When
   somebody mistypes an identifier at a counter, it returns the valid
   identifiers one mistake away. The check character keeps that list short:
@@ -41,6 +34,30 @@ Nothing has been released yet. Everything below ships in the first release.
 - `spokenid new --plain`, and near misses on a failed `spokenid check`.
 
 ### Fixed
+
+- **Counting and drawing at random differ by far more than the README said.**
+  No check character catches every mistake, and counted identifiers sit next to
+  each other, so an undetected error often lands on another identifier you
+  issued. Measured over a register of five thousand: of the neighbour swaps the
+  check character misses, half hit another real record when counting with
+  `step=1`, and none do when drawing at random. Over a simulated day of forty
+  thousand lookups, counting returns the wrong record 0.64% of the time and
+  random returns it never. The README presented the choice as collision-freedom
+  against guessability; it now leads with this, recommends `random()` by
+  default, and shows the numbers.
+- `random()` without a `taken` check draws once and can return an identifier
+  you already issued, while the README said it "simply draws again". It says
+  what actually happens now, and `spokenid new -n N` de-duplicates its own
+  batch.
+- `Scheme(check="no")` and `Scheme(check=None)` quietly built a scheme with no
+  check character.
+- `Alphabet.derive` silently ignored a lookalike whose key was not in the pool.
+- The release gates read `git tag -l` from the checkout, but actions/checkout
+  does not fetch tags for a branch or pull-request build, so tagging a release
+  would have turned CI red on main permanently. Those checks moved into
+  `release.yml`, where the tag exists.
+- `RELEASING.md` gave an order that could not be followed and never said to
+  commit the edits, so the tag would have landed on a commit without them.
 
 - The recovery recipe in the README insisted on exactly one candidate and
   returned nothing otherwise. When identifiers are issued by counting — which

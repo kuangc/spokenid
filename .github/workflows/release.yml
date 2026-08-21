@@ -42,6 +42,17 @@ jobs:
           assert scheme.validate(scheme.random())
           print('wheel works:', spokenid.__version__)
           "
+      - name: The documentation has to match the tag
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          grep -q "^## \[$version\]" CHANGELOG.md || {
+            echo "CHANGELOG.md has no [$version] section. See RELEASING.md."; exit 1; }
+          if grep -q "Not on PyPI yet" README.md; then
+            echo "README.md still says the package is not on PyPI, and that text"
+            echo "renders on the PyPI page. See RELEASING.md step 3."; exit 1
+          fi
+          grep -q "pip install spokenid" README.md || {
+            echo "README.md does not show 'pip install spokenid'."; exit 1; }
       - name: Check the tag matches the package version
         run: |
           tagged="${GITHUB_REF_NAME#v}"

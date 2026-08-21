@@ -127,6 +127,12 @@ class Alphabet:
         # Fold to upper case so a lower-case pool still loses its vowels.
         table = {k.upper(): v.upper() for k, v in given.items()}
         pool = "".join(dict.fromkeys(pool.upper()))
+        for key in table:
+            if key not in pool:
+                raise InvalidScheme(
+                    f"{key!r} is named as a lookalike but is not in the pool, so "
+                    "removing it would do nothing"
+                )
         vowels = VOWELS if drop_vowels else frozenset()
 
         excluded = []
