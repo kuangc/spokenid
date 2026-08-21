@@ -335,10 +335,21 @@ def test_describe_is_honest_at_the_edges() -> None:
     assert "always" in tiny.describe([tiny.space * 2])
 
 
-def test_a_long_paste_is_refused_before_it_is_scanned(scheme: Scheme) -> None:
+def test_a_long_paste_costs_no_more_than_a_short_one(scheme: Scheme) -> None:
+    """Reading stops once the result is already too long to be an identifier."""
+    import time
+
+    started = time.perf_counter()
     read = scheme.parse("O" * 5_000_000)
+    elapsed = time.perf_counter() - started
     assert not read.ok
-    assert "far longer" in (read.problem or "")
+    assert elapsed < 0.1, f"took {elapsed:.3f}s, so it scanned the whole paste"
+
+
+def test_padding_does_not_make_a_valid_identifier_invalid(scheme: Scheme) -> None:
+    """An earlier cap measured the raw length and rejected this."""
+    identifier = scheme.random()
+    assert scheme.parse(" " * 100_000 + identifier).value == identifier
 
 
 def test_a_character_that_upper_cases_to_two_is_one_mistake_not_two(
@@ -384,3 +395,74 @@ def test_describe_refuses_a_negative_population(scheme: Scheme) -> None:
 
     with pytest.raises(InvalidArgument, match="negative"):
         scheme.describe([-5])
+
+
+# --- separators: the check and the reading have to agree about case ---------
+
+
+def test_no_accepted_separator_produces_an_unreadable_identifier() -> None:
+    """The clash check was case-sensitive while reading upper-cased.
+
+    Eighteen lower-case separators passed the check and then deleted a body
+    character, so a counted sequence died within a few steps.
+    """
+    import string
+
+    for separator in string.printable + "ßﬁ":
+        try:
+            scheme = Scheme(separator=separator)
+        except InvalidScheme:
+            continue
+        current = scheme.first()
+        for step in range(40):
+            assert scheme.parse(current).ok, (
+                f"separator {separator!r} issued {current!r}, which it cannot read "
+                f"back, after {step} steps"
+            )
+            current = scheme.next(current)
+
+
+@pytest.mark.parametrize("separator", ["x", "c", "o", "s", "ß", "ﬁ"])
+def test_a_separator_that_folds_into_the_alphabet_is_refused(separator: str) -> None:
+    with pytest.raises(InvalidScheme):
+        Scheme(separator=separator)
+
+
+def test_a_separator_cannot_mix_whitespace_with_anything_else() -> None:
+    """Reading strips whitespace first, so " - " could never match."""
+    with pytest.raises(InvalidScheme, match="mixes whitespace"):
+        Scheme(separator=" - ")
+
+
+def test_a_separator_of_pure_whitespace_works() -> None:
+    scheme = Scheme(length=9, groups=(3, 3, 3), separator=" ")
+    identifier = scheme.first()
+    assert " " in identifier
+    assert scheme.parse(identifier).ok
+
+
+def test_a_long_separator_can_still_be_read_back() -> None:
+    scheme = Scheme(length=20, separator="-" * 30)
+    assert scheme.parse(scheme.first()).ok
+
+
+# --- sizes big enough to break str(int) -------------------------------------
+
+
+def test_an_absurd_length_is_refused_rather_than_breaking_later() -> None:
+    """str() refuses an integer over 4300 digits, which broke describe()."""
+    from spokenid.scheme import MAX_LENGTH
+
+    with pytest.raises(InvalidScheme, match="past the"):
+        Scheme(length=MAX_LENGTH + 1)
+    biggest = Scheme(length=MAX_LENGTH)
+    assert biggest.describe([1])
+    assert biggest.validate(biggest.random())
+
+
+def test_short_number_formatting_is_well_formed() -> None:
+    from spokenid.scheme import _short
+
+    assert _short(1) == "1.00e+0"
+    assert _short(10) == "1.00e+1"
+    assert _short(1234) == "1.23e+3"

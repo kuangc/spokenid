@@ -24,9 +24,10 @@ Taken = Callable[[str], bool]
 #: Characters per group when the caller does not choose. Four reads well aloud.
 PREFERRED_GROUP = 4
 
-#: Longest input parse() will look at. No identifier needs anything near this,
-#: and it keeps a pasted megabyte from being scanned character by character.
-MAX_INPUT = 4096
+#: Longest identifier a scheme may describe. Far past anything a person would
+#: read aloud, and it keeps the arithmetic inside what str() will format:
+#: Python refuses to render an integer of more than 4300 digits.
+MAX_LENGTH = 256
 
 
 def _short(value: int) -> str:
@@ -35,7 +36,8 @@ def _short(value: int) -> str:
     ``float(10**400)`` overflows, so the digits are counted instead.
     """
     digits = str(value)
-    return f"{digits[0]}.{digits[1:3]}e+{len(digits) - 1}"
+    fraction = digits[1:3].ljust(2, "0")
+    return f"{digits[0]}.{fraction}e+{len(digits) - 1}"
 
 
 def default_groups(length: int) -> tuple[int, ...]:
@@ -129,6 +131,11 @@ class Scheme:
         object.__setattr__(self, "groups", chosen)
         if self.length < 2:
             raise InvalidScheme("an identifier needs at least two characters")
+        if self.length > MAX_LENGTH:
+            raise InvalidScheme(
+                f"an identifier of {self.length} characters is past the {MAX_LENGTH} "
+                "this handles, and nobody could read it aloud anyway"
+            )
         if sum(self.groups) != self.length:
             raise InvalidScheme(
                 f"groups {tuple(self.groups)} add up to {sum(self.groups)}, "
@@ -136,13 +143,29 @@ class Scheme:
             )
         if any(size < 1 for size in self.groups):
             raise InvalidScheme("every group needs at least one character")
-        # `in` on a str is a substring test: "YX" would pass while "XY" failed.
-        # Compare character by character, and include the characters that
-        # repair into the alphabet, or a typed separator would be stripped
-        # instead of corrected.
-        clash = set(self.separator) & (
-            set(self.alphabet.characters) | set(self.alphabet.repairs)
+        # The separator has to survive reading, which upper-cases and strips
+        # whitespace. Compare the folded form, or a lower-case separator passes
+        # here and then deletes a body character in _flatten.
+        folded = self.separator.upper()
+        if len(folded) != len(self.separator):
+            raise InvalidScheme(
+                f"the separator {self.separator!r} changes length when upper-cased, "
+                "so an identifier could not be read back"
+            )
+        mixes_whitespace = (
+            self.separator
+            and not self.separator.isspace()
+            and any(char.isspace() for char in self.separator)
         )
+        if mixes_whitespace:
+            raise InvalidScheme(
+                f"the separator {self.separator!r} mixes whitespace with other "
+                "characters, and reading strips whitespace first"
+            )
+        # `in` on a str is a substring test: "YX" would pass while "XY" failed.
+        # Include the characters that repair into the alphabet, or a typed
+        # separator would be stripped instead of corrected.
+        clash = set(folded) & (set(self.alphabet.characters) | set(self.alphabet.repairs))
         if clash:
             raise InvalidScheme(
                 f"the separator {self.separator!r} uses {''.join(sorted(clash))!r}, "
@@ -280,17 +303,24 @@ class Scheme:
 
         Done one character at a time because ``str.upper()`` can lengthen a
         string (``"ß"`` becomes ``"SS"``), which would report two mistakes at
-        the wrong positions for one character the person actually typed.
+        positions the person never typed.
+
+        Stops once the result is already too long to be an identifier, so a
+        pasted megabyte costs the same as a pasted line.
         """
-        kept = []
+        separator = self.separator.upper()
+        limit = self.length + len(separator) * len(self.groups) + 1
+        kept: list[str] = []
         for char in raw:
             if char.isspace():
                 continue
             upper = char.upper()
             kept.append(upper if len(upper) == 1 else char)
+            if len(kept) > limit:
+                break
         cleaned = "".join(kept)
-        if self.separator:
-            cleaned = cleaned.replace(self.separator.upper(), "")
+        if separator:
+            cleaned = cleaned.replace(separator, "")
         return cleaned
 
     def parse(self, raw: object) -> Parsed:
@@ -308,14 +338,6 @@ class Scheme:
             return Parsed(
                 False,
                 problem=(f"an identifier is text, and this is {type(raw).__name__}"),
-            )
-
-        if len(raw) > MAX_INPUT:
-            return Parsed(
-                False,
-                problem=(
-                    f"an identifier is {self.length} characters, and this is far longer"
-                ),
             )
 
         flat = self._flatten(raw)
@@ -379,7 +401,7 @@ class Scheme:
         """
         if limit < 1:
             raise InvalidArgument("limit must be at least 1")
-        if self._checker is None or not isinstance(raw, str) or len(raw) > MAX_INPUT:
+        if self._checker is None or not isinstance(raw, str):
             return ()
 
         flat = self._flatten(raw)

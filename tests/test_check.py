@@ -86,3 +86,9 @@ def test_compute_refuses_a_character_it_does_not_know() -> None:
 
     with pytest.raises(InvalidArgument, match="not in the alphabet"):
         Luhn(SPOKEN).compute("A")
+
+
+@pytest.mark.parametrize("junk", [None, b"0000000X", 12345, ["0", "0"], 3.5])
+def test_verify_answers_for_things_that_are_not_text(junk: object) -> None:
+    """It promises a bool, so it has to return one for anything at all."""
+    assert Luhn(SPOKEN).verify(junk) is False

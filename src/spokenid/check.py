@@ -55,13 +55,13 @@ class Luhn:
             total += addend // size + addend % size
         return chars[(size - total % size) % size]
 
-    def verify(self, identifier: str) -> bool:
+    def verify(self, identifier: object) -> bool:
         """True when the last character of ``identifier`` is the right one.
 
         Answers ``False`` rather than raising for anything that is not made of
         alphabet characters, because callers use this as a question.
         """
-        if len(identifier) < 2:
+        if not isinstance(identifier, str) or len(identifier) < 2:
             return False
         try:
             return self.compute(identifier[:-1]) == identifier[-1]

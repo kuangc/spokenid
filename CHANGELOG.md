@@ -25,6 +25,27 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **A separator could still be accepted and then break the scheme.** The first
+  attempt at this fixed the comparison but not the disagreement underneath it:
+  the check read the separator as written while reading upper-cased it, so
+  eighteen lower-case separators passed and then deleted a body character.
+  `Scheme(separator="x")` issued identifiers it could not read back two steps
+  later. Both sides now fold case the same way, and a separator that mixes
+  whitespace with anything else is refused, because reading strips whitespace
+  first and such a separator could never match.
+- `describe()` and `random()` raised a bare `ValueError` for a scheme longer
+  than about 3,040 characters, because Python refuses to render an integer of
+  more than 4,300 digits. Length is now capped at 256, which is far past
+  anything a person would read aloud.
+- The cap on input length measured what was pasted rather than what it
+  contained, so a valid identifier behind a lot of padding was refused. Reading
+  now stops as soon as the result is too long to be an identifier, which makes
+  a twenty-megabyte paste cost the same as a short one and accepts the padded
+  identifier.
+- A scheme with a long separator could not read back its own output.
+- `Luhn.verify()` raised `TypeError` for input that was not text, though it
+  promises an answer.
+
 - A separator was checked against the alphabet with `in`, which is a substring
   test, so `separator="YX"` was accepted where `"XY"` was refused. A scheme
   could then issue identifiers its own `parse()` rejected. Separators are now
