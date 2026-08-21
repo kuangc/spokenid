@@ -44,3 +44,7 @@ over an odd one.
 
 Say what you expected, what happened, and the shortest code that shows it. If
 Hypothesis found it for you, include the `@seed(...)` line it printed.
+
+## Releasing
+
+See [RELEASING.md](https://github.com/kuangc/spokenid/blob/main/RELEASING.md).

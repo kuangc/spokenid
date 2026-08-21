@@ -495,3 +495,10 @@ def test_suggest_ignores_input_too_long_to_read(scheme: Scheme) -> None:
     from spokenid.scheme import MAX_MEANINGFUL
 
     assert scheme.suggest("0" * (MAX_MEANINGFUL + 10)) == ()
+
+
+@pytest.mark.parametrize("groups", [(4.0, 4.0), (4, "4"), (True, 7), (4, None)])
+def test_group_sizes_must_be_whole_numbers(groups: object) -> None:
+    """sum() used to raise TypeError before any friendly message."""
+    with pytest.raises(InvalidScheme, match="whole number"):
+        Scheme(length=8, groups=groups)  # type: ignore[arg-type]

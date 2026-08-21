@@ -10,6 +10,14 @@ Nothing has been released yet. Everything below ships in the first release.
 
 ### Added
 
+- `RELEASING.md`, and gates so the documentation cannot lag a tag: the suite
+  fails if a version is tagged with no changelog section, or if the README
+  still says the package is not on PyPI once something is published. That text
+  is what renders on the PyPI page.
+- The release workflow runs the full suite on every supported Python and uses
+  the built wheel from a clean environment before it publishes anything. It
+  used to build and publish without a single test.
+
 - `tests/test_readme_figures.py`. A reviewer smuggled nine wrong figures past
   the README test, because it only checked code blocks and every number written
   in a sentence was unchecked. The figures are recomputed from the library now,
@@ -33,6 +41,17 @@ Nothing has been released yet. Everything below ships in the first release.
 - `spokenid new --plain`, and near misses on a failed `spokenid check`.
 
 ### Fixed
+
+- The recovery recipe in the README insisted on exactly one candidate and
+  returned nothing otherwise. When identifiers are issued by counting — which
+  the README recommends for paper filing — neighbours are dense, so at a
+  thousand members a third of mistyped identifiers had two or three candidates
+  the clinic held and the recipe threw all of them away. The identifier that
+  was meant is among the candidates every time; the recipe hands them back now,
+  the rates are published as a table, and the advice to leave gaps is connected
+  to recovery rather than only to guessing resistance.
+- Group sizes were not type-checked the way `length` is, so `groups=(4.0, 4.0)`
+  built a scheme on which every method raised `TypeError`.
 
 - The broken-pipe fix only covered output large enough to overflow the 8 KB
   buffer, so eight of nine subcommands still exited 120 with a traceback when

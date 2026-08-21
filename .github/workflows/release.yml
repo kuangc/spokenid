@@ -8,13 +8,40 @@ permissions:
   contents: read
 
 jobs:
+  test:
+    name: Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.0.1
+      - run: uv sync --python ${{ matrix.python }}
+      - run: uv run --python ${{ matrix.python }} pytest -q
+      - run: uv run ruff check .
+      - run: uv run mypy
+
   build:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.0.1
       - run: uv build
       - run: uvx twine check --strict dist/*
+      - name: Use the wheel from a clean directory before publishing it
+        run: |
+          mkdir -p /tmp/preflight && cd /tmp/preflight
+          uv venv
+          uv pip install --python .venv "$(ls "$GITHUB_WORKSPACE"/dist/*.whl)"
+          .venv/bin/python -c "
+          import spokenid
+          scheme = spokenid.Scheme()
+          assert scheme.validate(scheme.random())
+          print('wheel works:', spokenid.__version__)
+          "
       - name: Check the tag matches the package version
         run: |
           tagged="${GITHUB_REF_NAME#v}"

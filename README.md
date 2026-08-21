@@ -93,17 +93,34 @@ scheme.suggest("7HW2-0J4X")
 Those are the identifiers one small mistake away that the check character still
 accepts: a substitution, a swap of neighbours, or one character too few or too
 many. There are only ever about as many as the identifier is long, because the
-check character rejects the other twenty-five in twenty-six. Look them up.
-Nearly always exactly one is a record you hold, and that is the answer:
+check character rejects the other twenty-five in twenty-six.
+
+**The one that was meant is always among them.** Look them up and hand back
+whatever you hold, rather than insisting on a single answer:
 
 ```python
 def find(typed, records):
+    """Records that `typed` might mean. Zero, one, or a few to choose between."""
     read = scheme.parse(typed)
     if read.ok:
-        return records.get(read.value)
-    near = [c for c in scheme.suggest(typed) if c in records]
-    return records[near[0]] if len(near) == 1 else None
+        return [records[read.value]] if read.value in records else []
+    return [records[c] for c in scheme.suggest(typed) if c in records]
 ```
+
+How often that list has exactly one entry depends on how you issue. Measured
+over a thousand members and every single-character typo the check character
+catches:
+
+| Issued by | Exactly one candidate | The right one is among them |
+|---|---:|---:|
+| `random()` | 100% | 100% |
+| `next(step=1)` | 64% | 100% |
+| `next(step=random.randint(1, 50))` | 95% | 100% |
+
+Counting with `step=1` puts identifiers next to each other, so a near miss of
+one is often another one you issued. That is the cost of a tidy sequence, and
+leaving gaps buys most of it back. It is never a wrong answer — only a question
+to ask the person in front of you.
 
 ## From the command line
 
@@ -239,7 +256,8 @@ scheme.next("0000-0000")
 Counted identifiers sort into the order they were issued, which is useful when
 they are filed on paper.
 
-Two things to know. **This assumes a single writer**: two processes that read the
+Leaving gaps also helps when somebody mistypes one; see the table above. Two
+things to know. **This assumes a single writer**: two processes that read the
 same stored value both get the same answer, so whatever holds the last issued
 identifier has to serialise access to it, with a row lock or a database sequence.
 And **counted identifiers are guessable**, since holding one means holding the

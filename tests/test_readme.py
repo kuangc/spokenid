@@ -49,10 +49,19 @@ def _pairs(source: str) -> list[tuple[str, str]]:
         if not stripped or stripped.startswith("#"):
             continue
         expression = stripped
-        if "  #" in stripped:  # expr  # something
-            expression, _, comment = stripped.partition("  #")
-            expression = expression.strip()
-            out.append((expression, "#" + comment))
+        # Split at the first `#` whose left side is a complete expression, so
+        # one space is as good as two and a `#` inside a string is left alone.
+        for index, character in enumerate(stripped):
+            if character != "#" or index == 0 or not stripped[index - 1].isspace():
+                continue
+            candidate = stripped[:index].strip()
+            try:
+                ast.parse(candidate, mode="eval")
+            except (ValueError, SyntaxError):
+                continue
+            expression = candidate
+            out.append((expression, stripped[index:]))
+            break
         if number + 1 < len(lines) and lines[number + 1].strip().startswith("#"):
             out.append((expression, lines[number + 1].strip()))
     return out

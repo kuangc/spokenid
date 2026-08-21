@@ -210,9 +210,41 @@ def test_the_changelog_does_not_claim_an_unreleased_version(text: str) -> None:
         text=True,
         check=False,
     ).stdout.split()
-    for heading in re.findall(r"^## \[([^\]]+)\]", changelog, re.MULTILINE):
+    headings = re.findall(r"^## \[([^\]]+)\]", changelog, re.MULTILINE)
+    for heading in headings:
         if heading == "Unreleased":
             continue
         assert f"v{heading}" in tags, (
             f"CHANGELOG announces {heading}, but no v{heading} tag exists"
         )
+    # And the other way: a release with no entry leaves the Changelog link on
+    # PyPI reading "nothing has been released yet".
+    for tag in tags:
+        if not tag.startswith("v"):
+            continue
+        assert tag[1:] in headings, (
+            f"{tag} is tagged, but CHANGELOG has no [{tag[1:]}] section"
+        )
+
+
+def test_the_install_line_is_true_once_something_is_published(text: str) -> None:
+    """This README becomes the PyPI page, so it cannot say it is not on PyPI."""
+    import subprocess
+
+    tags = subprocess.run(
+        ["git", "tag", "-l", "v*"],  # noqa: S607
+        cwd=README.parent,
+        capture_output=True,
+        text=True,
+        check=False,
+    ).stdout.split()
+    if not tags:
+        assert "Not on PyPI yet" in text, (
+            "nothing is released, so the install section should say so"
+        )
+        return
+    assert "Not on PyPI yet" not in text, (
+        f"{tags[-1]} is tagged; the install section still says the package is "
+        "not on PyPI, and that text is what renders on the PyPI page"
+    )
+    assert "pip install spokenid" in text

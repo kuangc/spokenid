@@ -147,13 +147,18 @@ class Scheme:
             )
         chosen = tuple(self.groups) or default_groups(self.length)
         object.__setattr__(self, "groups", chosen)
+        # Types before arithmetic: sum() on a group of strings raises TypeError
+        # before any of the friendly messages below get a chance.
+        for size in self.groups:
+            if not isinstance(size, int) or isinstance(size, bool):
+                raise InvalidScheme(f"a group size must be a whole number, not {size!r}")
+            if size < 1:
+                raise InvalidScheme("every group needs at least one character")
         if sum(self.groups) != self.length:
             raise InvalidScheme(
                 f"groups {tuple(self.groups)} add up to {sum(self.groups)}, "
                 f"but the identifier is {self.length} characters"
             )
-        if any(size < 1 for size in self.groups):
-            raise InvalidScheme("every group needs at least one character")
         # The separator has to survive reading, which upper-cases and strips
         # whitespace. Compare the folded form, or a lower-case separator passes
         # here and then deletes a body character in _flatten.
@@ -410,8 +415,13 @@ class Scheme:
         The check character is what makes this short: out of every string one
         edit away, only about one in twenty-six survives, so the answer is a
         handful of candidates rather than a haystack, roughly one per character.
-        Look them up. Usually exactly one is a record you hold, and that is the
-        answer.
+        Look them up: the identifier that was meant is always among them.
+
+        How many of them you also hold depends on how you issue. Drawn at
+        random, it is essentially always exactly one. Counted with ``step=1``,
+        neighbours are dense, so at a thousand members about a third of the
+        time two or three of the candidates are yours and the person has to be
+        asked which. Counting with gaps takes that back to about one in twenty.
 
         Every candidate is returned unless you pass ``limit``. Cutting the list
         short is a bad trade: the substitutions are generated left to right, so
