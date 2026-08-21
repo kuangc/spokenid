@@ -357,7 +357,7 @@ def test_a_character_that_upper_cases_to_two_is_one_mistake_not_two(
 ) -> None:
     """'ß'.upper() == 'SS', which used to report two repairs at wrong positions."""
     # Eight characters once the separator goes, so length is not the complaint.
-    assert len(scheme._flatten("0000-0ßDD")) == scheme.length
+    assert len(scheme._flatten("0000-0ßDD")[0]) == scheme.length
     read = scheme.parse("0000-0ßDD")
     assert not read.ok
     assert "ß" in (read.problem or "")

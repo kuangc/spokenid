@@ -35,15 +35,26 @@ def python_blocks() -> list[str]:
     return [body for language, body in fences() if language == "python"]
 
 
-def literal_claims(source: str) -> list[tuple[str, str]]:
-    """Pairs of (expression, expected repr) written as `expr` then `# literal`."""
-    claims = []
+def _pairs(source: str) -> list[tuple[str, str]]:
+    """Every (expression, comment) pair, on one line or on two."""
+    out = []
     lines = source.splitlines()
-    for number, line in enumerate(lines[:-1]):
-        expression = line.strip()
-        comment = lines[number + 1].strip()
-        if not expression or expression.startswith("#") or not comment.startswith("#"):
+    for number, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
             continue
+        if "  #" in stripped:  # expr  # literal
+            expression, _, comment = stripped.partition("  #")
+            out.append((expression.strip(), "#" + comment))
+        elif number + 1 < len(lines) and lines[number + 1].strip().startswith("#"):
+            out.append((stripped, lines[number + 1].strip()))
+    return out
+
+
+def literal_claims(source: str) -> list[tuple[str, str]]:
+    """Pairs of (expression, expected repr) the README asserts are true."""
+    claims = []
+    for expression, comment in _pairs(source):
         expected = comment.lstrip("#").strip()
         if not expected or expected.startswith("e.g."):
             continue
@@ -87,7 +98,7 @@ def test_every_python_block_runs_and_every_claim_holds() -> None:
                 f"but it is {actual}"
             )
             checked += 1
-    assert checked >= 10, f"only {checked} outputs are actually verified"
+    assert checked >= 14, f"only {checked} outputs are actually verified"
 
 
 def test_printed_output_matches_the_block_that_follows() -> None:
@@ -123,3 +134,36 @@ def test_every_public_name_is_documented() -> None:
         if not name.startswith("__") and name not in words
     )
     assert not missing, f"exported but never mentioned in the README: {missing}"
+
+
+def test_console_examples_really_print_that() -> None:
+    """Every `$ spokenid ...` block is run, and its shown output must appear.
+
+    A line of `...` stands for output left out. Everything else has to match.
+    """
+    import subprocess
+    import sys
+
+    ran = 0
+    for language, body in fences():
+        if language != "console":
+            continue
+        lines = body.strip().splitlines()
+        assert lines[0].startswith("$ "), body
+        command = lines[0][2:].split()
+        assert command[0] == "spokenid", command
+        finished = subprocess.run(  # noqa: S603
+            [sys.executable, "-m", "spokenid", *command[1:]],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        printed = finished.stdout + finished.stderr
+        for shown in lines[1:]:
+            if shown.strip() in {"", "..."}:
+                continue
+            assert shown in printed, (
+                f"`{lines[0]}` never prints {shown!r}\nit prints:\n{printed}"
+            )
+        ran += 1
+    assert ran >= 1, "no console examples are being run"

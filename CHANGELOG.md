@@ -8,6 +8,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `tests/test_readme_figures.py`. A reviewer smuggled nine wrong figures past
+  the README test, because it only checked code blocks and every number written
+  in a sentence was unchecked. The figures are recomputed from the library now,
+  and the same nine changes all fail. Values shown as `# comment` are compared
+  whether they sit on the same line or the next, and `$ spokenid` blocks are
+  executed rather than taken on trust.
+
 - `Scheme.suggest()`, which answers the question `parse()` leaves open. When
   somebody mistypes an identifier at a counter, it returns the valid
   identifiers one mistake away. The check character keeps that list short:
@@ -24,6 +31,25 @@ All notable changes to this project are documented here. The format follows
 - `spokenid new --plain`, and near misses on a failed `spokenid check`.
 
 ### Fixed
+
+- **`parse()` silently misread input.** The early exit added to bound reading
+  cost counted separator characters before they were removed, so anything of
+  the form `<identifier><three or more separators><anything>` had its tail
+  discarded and was accepted. `parse("0000-001X --- Jane Doe")` returned
+  `ok=True` with the identifier, `validate()` agreed, and the command line
+  exited 0. Worse, input could be truncated into a *different* valid
+  identifier: `parse("0-311-PF-H-V1")` returned `0311-PFHV`. Nothing is counted
+  until the separators are out, so trailing content is refused again and
+  separator padding parses as it used to.
+- `suggest()` cut the list at ten by default, and generates substitutions left
+  to right, so the position it dropped first was the last one, which is the
+  check character. A mistyped check character is one of the likeliest errors,
+  and the right answer was missing 42% of the time at sixteen characters. All
+  candidates are returned now; there are only about as many as the identifier
+  is long.
+- The command line died with a `BrokenPipeError` traceback and exit 120 when
+  its output was closed early, which is what `| head` does. It exits 141 in
+  silence, as a well-behaved command should.
 
 - **A separator could still be accepted and then break the scheme.** The first
   attempt at this fixed the comparison but not the disagreement underneath it:
@@ -77,6 +103,13 @@ All notable changes to this project are documented here. The format follows
 First release.
 
 ### Added
+
+- `tests/test_readme_figures.py`. A reviewer smuggled nine wrong figures past
+  the README test, because it only checked code blocks and every number written
+  in a sentence was unchecked. The figures are recomputed from the library now,
+  and the same nine changes all fail. Values shown as `# comment` are compared
+  whether they sit on the same line or the next, and `$ spokenid` blocks are
+  executed rather than taken on trust.
 
 - `Scheme`, which describes the shape of an identifier and issues one two ways:
   `random()` with a caller-supplied uniqueness check, and `next()` which counts

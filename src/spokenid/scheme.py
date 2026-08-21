@@ -24,6 +24,10 @@ Taken = Callable[[str], bool]
 #: Characters per group when the caller does not choose. Four reads well aloud.
 PREFERRED_GROUP = 4
 
+#: Most meaningful characters reading will look at, ignoring whitespace. Far
+#: past any identifier, and it stops a pasted megabyte being scanned in full.
+MAX_MEANINGFUL = 4096
+
 #: Longest identifier a scheme may describe. Far past anything a person would
 #: read aloud, and it keeps the arithmetic inside what str() will format:
 #: Python refuses to render an integer of more than 4300 digits.
@@ -267,7 +271,7 @@ class Scheme:
         read = self.parse(previous)
         if not read.ok or read.value is None:
             raise Unreadable(f"cannot read {previous!r}: {read.problem}")
-        flat = self._flatten(read.value)
+        flat, _ = self._flatten(read.value)
         body = flat[: self.body_length]
 
         position = self._to_int(body) + step
@@ -298,30 +302,36 @@ class Scheme:
 
     # ---------------------------------------------------------------- reading
 
-    def _flatten(self, raw: str) -> str:
+    def _flatten(self, raw: str) -> tuple[str, bool]:
         """Drop whitespace and separators, and upper-case, character by character.
 
-        Done one character at a time because ``str.upper()`` can lengthen a
-        string (``"ß"`` becomes ``"SS"``), which would report two mistakes at
-        positions the person never typed.
+        Returns the cleaned text and whether reading stopped early.
 
-        Stops once the result is already too long to be an identifier, so a
-        pasted megabyte costs the same as a pasted line.
+        One character at a time because ``str.upper()`` can lengthen a string
+        (``"ß"`` becomes ``"SS"``), which would report mistakes at positions the
+        person never typed.
+
+        Nothing is counted toward the limit until after the separators come
+        out. An earlier version counted them while they were still in, so
+        ``"0000-001X --- Jane Doe"`` shed its tail and was accepted as
+        ``"0000-001X"``, which is the exact failure this library exists to
+        prevent.
         """
         separator = self.separator.upper()
-        limit = self.length + len(separator) * len(self.groups) + 1
         kept: list[str] = []
+        truncated = False
         for char in raw:
             if char.isspace():
                 continue
             upper = char.upper()
             kept.append(upper if len(upper) == 1 else char)
-            if len(kept) > limit:
+            if len(kept) > MAX_MEANINGFUL:
+                truncated = True
                 break
         cleaned = "".join(kept)
         if separator:
             cleaned = cleaned.replace(separator, "")
-        return cleaned
+        return cleaned, truncated
 
     def parse(self, raw: object) -> Parsed:
         """Read something a person typed.
@@ -340,7 +350,12 @@ class Scheme:
                 problem=(f"an identifier is text, and this is {type(raw).__name__}"),
             )
 
-        flat = self._flatten(raw)
+        flat, truncated = self._flatten(raw)
+        if truncated:
+            return Parsed(
+                False,
+                problem="this is far too long to be an identifier",
+            )
         if not flat:
             return Parsed(False, problem="no identifier was given")
         # Length first. Repairs are one character for one character, so this
@@ -376,7 +391,7 @@ class Scheme:
             )
         return Parsed(True, self._group(fixed), tuple(repairs))
 
-    def suggest(self, raw: object, limit: int = 10) -> tuple[str, ...]:
+    def suggest(self, raw: object, limit: int | None = None) -> tuple[str, ...]:
         """Valid identifiers that are one small mistake away from ``raw``.
 
         For when :meth:`parse` says no and somebody is standing at the counter.
@@ -386,8 +401,14 @@ class Scheme:
 
         The check character is what makes this short: out of every string one
         edit away, only about one in twenty-six survives, so the answer is a
-        handful of candidates rather than a haystack. Look them up. Usually
-        exactly one is a record you hold, and that is the answer.
+        handful of candidates rather than a haystack, roughly one per character.
+        Look them up. Usually exactly one is a record you hold, and that is the
+        answer.
+
+        Every candidate is returned unless you pass ``limit``. Cutting the list
+        short is a bad trade: the substitutions are generated left to right, so
+        a limit drops the rightmost position first, and the rightmost position
+        is the check character, which is one of the likeliest things to mistype.
 
         >>> scheme = Scheme()
         >>> scheme.parse("0000-001W").ok          # a genuine typo
@@ -399,12 +420,14 @@ class Scheme:
         then every well-formed string is already valid and nothing is a
         near miss.
         """
-        if limit < 1:
+        if limit is not None and limit < 1:
             raise InvalidArgument("limit must be at least 1")
         if self._checker is None or not isinstance(raw, str):
             return ()
 
-        flat = self._flatten(raw)
+        flat, truncated = self._flatten(raw)
+        if truncated:
+            return ()
         table = self.alphabet.repairs
         flat = "".join(table.get(char, char) for char in flat)
         chars = self.alphabet.characters
@@ -453,7 +476,7 @@ class Scheme:
                 keep(flat[:position] + flat[position + 1 :], 1)
 
         ranked = sorted(found, key=lambda candidate: found[candidate])
-        return tuple(ranked[:limit])
+        return tuple(ranked if limit is None else ranked[:limit])
 
     def validate(self, raw: object) -> bool:
         """True when ``raw`` is already a correct identifier, needing no repair."""

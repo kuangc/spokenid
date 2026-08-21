@@ -253,11 +253,25 @@ scheme.next("0000-001X", step=random.randint(1, 50))
 
 ## Choosing the length
 
-Any length works, and the grouping follows automatically:
+Any length works, and the grouping follows from it:
 
 ```python
-Scheme(length=6).random()  # 'KKK-QCJ'
-Scheme(length=10).random()  # '3MV-THK-5Y73'
+Scheme(length=6).groups
+# (3, 3)
+Scheme(length=10).groups
+# (3, 3, 4)
+Scheme(length=6).random()  # e.g. 'KKK-QCJ'
+```
+
+Set `groups` and `separator` yourself when the identifier has to fit boxes
+already printed on a form:
+
+```python
+scheme_for_forms = Scheme(length=9, groups=(3, 3, 3), separator=" ")
+scheme_for_forms.first()
+# '000 000 000'
+scheme_for_forms.length
+# 9
 ```
 
 ```python
@@ -401,10 +415,18 @@ validator uses an alphabet of 25 characters.
 
 ```bash
 uv sync
-uv run pytest        # tests, doctests, and every example on this page
+uv run pytest
 uv run mypy
 uv run ruff check .
 ```
+
+`pytest` also checks this page against the code: every `python` block is run in
+order, every value shown as a `# comment` is compared, every `$ spokenid` block
+is executed, and the figures written into the prose above — the alphabet size,
+the swap-detection rate, the one-in-forty, the ten collisions — are each
+recomputed in `tests/test_readme_figures.py` and required to still say what they
+say. Values that change from run to run are marked `# e.g.` and are illustration
+rather than a claim.
 
 Changes are listed in [CHANGELOG.md](CHANGELOG.md). Contributions are welcome —
 see [CONTRIBUTING.md](CONTRIBUTING.md).
