@@ -15,9 +15,10 @@ from .errors import (
     SequenceExhausted,
     SpaceExhausted,
     SpokenIdError,
+    Unreadable,
 )
 from .phonetic import NATO, phonetic
-from .scheme import Parsed, Repair, Scheme
+from .scheme import Parsed, Repair, Scheme, default_groups
 
 __version__ = "0.1.0"
 
@@ -36,6 +37,8 @@ __all__ = [
     "SequenceExhausted",
     "SpaceExhausted",
     "SpokenIdError",
+    "Unreadable",
     "__version__",
+    "default_groups",
     "phonetic",
 ]

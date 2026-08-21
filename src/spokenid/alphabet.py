@@ -125,7 +125,13 @@ class Alphabet:
         return list(self.characters) == sorted(self.characters)
 
     def explain(self, char: str) -> str:
-        """Say in one sentence why ``char`` is allowed, or why it is not."""
+        """Say in one sentence why ``char`` is allowed, or why it is not.
+
+        >>> SPOKEN.explain("7")
+        "'7' is in the alphabet"
+        """
+        if not isinstance(char, str) or len(char) != 1:
+            return f"{char!r} is not a single character"
         upper = char.upper()
         if upper in self.characters:
             return f"{upper!r} is in the alphabet"

@@ -24,3 +24,11 @@ class SpaceExhausted(SpokenIdError, RuntimeError):
 
 class SequenceExhausted(SpokenIdError, RuntimeError):
     """``Scheme.next()`` ran past the last identifier the scheme can express."""
+
+
+class Unreadable(SpokenIdError, ValueError):
+    """Something that should have been an identifier could not be read.
+
+    Inherits from :class:`ValueError` as well, so code that already catches that
+    keeps working.
+    """

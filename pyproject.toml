@@ -4,19 +4,19 @@ build-backend = "hatchling.build"
 
 [project]
 name = "spokenid"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Short identifiers people can say out loud, write down, and type back correctly."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
-authors = [{ name = "Kuang Chen" }]
+authors = [{ name = "Kuang Chen", email = "kuangc@gmail.com" }]
 keywords = [
     "identifier", "id", "id-generation", "human-readable", "check-digit",
     "luhn", "base32", "crockford", "healthcare", "patient-id",
 ]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Intended Audience :: Healthcare Industry",
     "Operating System :: OS Independent",
@@ -33,8 +33,12 @@ classifiers = [
 ]
 dependencies = []
 
+[project.scripts]
+spokenid = "spokenid.cli:main"
+
 [project.urls]
 Homepage = "https://github.com/kuangc/spokenid"
+Documentation = "https://github.com/kuangc/spokenid#readme"
 Source = "https://github.com/kuangc/spokenid"
 Issues = "https://github.com/kuangc/spokenid/issues"
 Changelog = "https://github.com/kuangc/spokenid/blob/main/CHANGELOG.md"
@@ -48,8 +52,14 @@ dev = [
     "ruff>=0.6",
 ]
 
+[tool.hatch.version]
+path = "src/spokenid/__init__.py"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/spokenid"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src", "tests", "README.md", "LICENSE", "CHANGELOG.md", "pyproject.toml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "src"]

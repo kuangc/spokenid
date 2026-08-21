@@ -28,8 +28,8 @@ jobs:
           - python: "3.13"
             os: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
         with:
           enable-cache: true
       - run: uv sync --python ${{ matrix.python }}
@@ -39,8 +39,8 @@ jobs:
     name: Lint and types
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
         with:
           enable-cache: true
       - run: uv sync
@@ -48,15 +48,32 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run mypy
 
-  build:
-    name: Build the package
+  package:
+    name: Build and install the package
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
       - run: uv build
-      - run: uvx twine check dist/*
-      - uses: actions/upload-artifact@v4
+      - run: uvx twine check --strict dist/*
+      # Everything above tests the source tree. This tests what people install:
+      # a regression that dropped py.typed from the wheel would otherwise ship green.
+      - name: Install the wheel and use it from a clean directory
+        run: |
+          mkdir -p /tmp/clean && cd /tmp/clean
+          uv venv
+          uv pip install --python .venv "$(ls $GITHUB_WORKSPACE/dist/*.whl)"
+          .venv/bin/python -c "
+          import importlib.metadata as md, pathlib, spokenid
+          scheme = spokenid.Scheme()
+          identifier = scheme.random()
+          assert scheme.validate(identifier), identifier
+          assert md.version('spokenid') == spokenid.__version__, 'version mismatch'
+          marker = pathlib.Path(spokenid.__file__).parent / 'py.typed'
+          assert marker.is_file(), 'py.typed missing from the wheel'
+          print('wheel ok:', identifier, spokenid.__version__)
+          "
+      - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/

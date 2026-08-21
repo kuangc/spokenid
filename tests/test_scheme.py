@@ -250,3 +250,57 @@ def test_scheme_without_a_check_character() -> None:
     assert scheme.validate(scheme.random())
     # Any well-formed string is now acceptable, because nothing verifies it.
     assert scheme.validate("0000-0000")
+
+
+# ------------------------------------------------------------------ regressions
+
+
+@pytest.mark.parametrize("length", list(range(2, 21)))
+def test_any_length_works_without_naming_groups(length: int) -> None:
+    """Groups used to default to (4, 4), so every length but 8 raised."""
+    scheme = Scheme(length=length)
+    assert sum(scheme.groups) == length
+    assert scheme.validate(scheme.random())
+
+
+def test_default_groups_shape() -> None:
+    from spokenid import default_groups
+
+    assert default_groups(4) == (4,)
+    assert default_groups(6) == (3, 3)
+    assert default_groups(7) == (3, 4)
+    assert default_groups(8) == (4, 4)
+    assert default_groups(9) == (3, 3, 3)
+    assert default_groups(10) == (3, 3, 4)
+    assert default_groups(12) == (4, 4, 4)
+
+
+def test_the_remedy_an_error_suggests_actually_works(scheme: Scheme) -> None:
+    """Both exhaustion messages name a Scheme(...) call. It has to be valid."""
+    import re
+
+    with pytest.raises(SpaceExhausted) as caught:
+        scheme.random(taken=lambda _: True, attempts=1)
+    match = re.search(r"Scheme\(length=(\d+)\)", str(caught.value))
+    assert match
+    suggested = Scheme(length=int(match.group(1)))
+    assert suggested.space > scheme.space
+
+
+@pytest.mark.parametrize("junk", [12345678, b"7HW2-0J46", ["7HW2-0J46"], 3.14, object()])
+def test_parse_answers_things_that_are_not_text(scheme: Scheme, junk: object) -> None:
+    read = scheme.parse(junk)
+    assert not read.ok
+    assert read.problem
+    assert "is text" in read.problem
+
+
+def test_next_raises_the_library_error(scheme: Scheme) -> None:
+    from spokenid import SpokenIdError, Unreadable
+
+    with pytest.raises(Unreadable):
+        scheme.next("nonsense")
+    with pytest.raises(SpokenIdError):
+        scheme.next("nonsense")
+    with pytest.raises(ValueError, match="cannot read"):  # still a ValueError
+        scheme.next("nonsense")

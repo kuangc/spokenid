@@ -10,3 +10,8 @@ build/
 .hypothesis/
 .coverage
 htmlcov/
+.DS_Store
+.idea/
+.vscode/
+coverage.xml
+.coverage.*

@@ -1,17 +1,20 @@
 # spokenid
 
-Short identifiers that people can say out loud, write on a form, and type back
-correctly. No vowels, so an identifier can never spell a word in any language.
-No character that looks like another one in the set.
+[![CI](https://github.com/kuangc/spokenid/actions/workflows/ci.yml/badge.svg)](https://github.com/kuangc/spokenid/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/python-3.10%20%E2%80%93%203.14-blue)](https://github.com/kuangc/spokenid)
+[![Licence](https://img.shields.io/badge/licence-Apache--2.0-blue)](LICENSE)
+[![Dependencies](https://img.shields.io/badge/dependencies-none-brightgreen)](pyproject.toml)
 
-```
-4KM7-PC2M
-```
+Short identifiers people can say out loud, write on a form, and type back
+correctly, like `4KM7-PC2M`. No vowels, so an identifier can never spell a word
+in any language. No character that looks like another one in the set.
 
-No dependencies. Type hints throughout. Python 3.10 and up.
+## Install
+
+Not on PyPI yet. Until it is:
 
 ```bash
-pip install spokenid
+pip install git+https://github.com/kuangc/spokenid
 ```
 
 ## Start here
@@ -30,19 +33,62 @@ Someone reads that down a phone line and the clerk hears "oh" instead of zero:
 ```python
 read = scheme.parse("7hw2 oj46")
 
-read.ok  # True
-read.value  # '7HW2-0J46'   what they meant
-read.repairs  # what had to be reinterpreted, so you can confirm it
+read.ok        # True
+read.value     # '7HW2-0J46'
+read.repairs   # (Repair(position=4, typed='O', read_as='0'),)
+read.exact     # False — it needed a repair, so confirm before you act on it
 ```
 
-And when it is genuinely wrong, you get a sentence you can show them:
+`Parsed` is truthy when it worked, so `if scheme.parse(x):` reads fine. The
+repairs are handed back rather than applied quietly, because changing an
+identifier without saying so is how the wrong record gets opened:
+
+```python
+for repair in read.repairs:
+    print(f"Position {repair.position}: you typed {repair.typed}, we read {repair.read_as}")
+```
+
+And when it is genuinely wrong, you get a sentence you can show someone:
 
 ```python
 scheme.parse("7HW2-0J4X").problem
 # 'this is not a valid identifier; check it for a typing mistake'
 ```
 
-That is the whole idea. The rest of this page is detail.
+## From the command line
+
+```bash
+spokenid new -n 3        # make three
+spokenid check 7hw2-oj46 # normalise and validate; exit 1 if it is wrong
+spokenid next 0000-0000  # the next one in a counted sequence
+spokenid say 4KM7-PC2M   # 4 Kilo Mike 7, Papa Charlie 2 Mike
+spokenid alphabet        # the character set, and why each one is in it
+spokenid describe        # how big the space is, and how guessable
+```
+
+## Storing them
+
+An identifier is text. `parse()` accepts it with or without the separator, in
+any case, and `value` always comes back in the canonical dashed form.
+
+**Store the canonical form**, the one `parse().value` gives you. It is what
+`random()` and `next()` return, so everything agrees.
+
+| | |
+|---|---|
+| Column type | `varchar(16)` is roomy for the default; the default is 9 characters including the dash |
+| Length | `len(scheme.random())` counts the separator. `scheme.length` does not |
+| Uniqueness | Put a unique index on the column. That index is what actually guarantees uniqueness, not this library |
+| Lookup | Run the user's input through `parse()` first, then query on `.value`. Never query on raw input |
+| Case | Always store uppercase. `parse()` upper-cases for you |
+
+```python
+def find_member(typed):
+    read = scheme.parse(typed)
+    if not read.ok:
+        return None, read.problem
+    return Member.objects.filter(code=read.value).first(), None
+```
 
 ## The alphabet
 
@@ -77,17 +123,31 @@ from spokenid import SPOKEN
 
 SPOKEN.explain("S")
 # "'S' was dropped because it looks like '5', so it reads as '5'"
-
-SPOKEN.explain("A")
-# "'A' was dropped because it is a vowel, and there is no other character it could be mistaken for"
 ```
+
+### Building your own
+
+```python
+from spokenid import Alphabet, Scheme
+
+# Digits only, nothing dropped for looking like anything else.
+digits = Alphabet.derive(drop_vowels=False, lookalikes={}, pool="0123456789")
+
+Scheme(alphabet=digits, length=6).random()
+# '681206'
+```
+
+`derive` removes the vowels unless you say otherwise, then removes every key of
+`lookalikes` and keeps every value. Keep the count even, or turn the check
+character off — see below.
 
 ## Two ways to issue an identifier
 
 ### Random, when it might appear in a URL
 
-You supply the uniqueness check, so this library never needs to know about your
-database.
+Drawn from `secrets`, so an identifier is not predictable from the ones before
+it. You supply the uniqueness check, so this library never needs to know about
+your database:
 
 ```python
 issued = set()
@@ -100,8 +160,8 @@ forever, and the message tells you the population has outgrown the scheme.
 
 ### Counting, when it must never collide
 
-Give it the last identifier you issued and it hands back the next one. No lookup,
-no collision, by construction.
+Give it the last identifier you issued and it hands back the next one. There is
+no collision check to run, because counting cannot produce one:
 
 ```python
 scheme.first()
@@ -111,11 +171,14 @@ scheme.next("0000-0000")
 # '0000-001X'
 ```
 
-Counted identifiers also sort into the order they were issued, which is useful
-when they are filed on paper.
+Counted identifiers sort into the order they were issued, which is useful when
+they are filed on paper.
 
-Counted identifiers are guessable, though. If that matters, leave gaps. The
-ordering and the no-collision guarantee both survive:
+Two things to know. **This assumes a single writer**: two processes that read the
+same stored value both get the same answer, so whatever holds the last issued
+identifier has to serialise access to it, with a row lock or a database sequence.
+And **counted identifiers are guessable**, since holding one means holding the
+next. Leaving gaps helps, and costs neither the ordering nor the guarantee:
 
 ```python
 import random
@@ -125,18 +188,23 @@ scheme.next("0000-001X", step=random.randint(1, 50))
 
 ## Choosing the length
 
+Any length works, and the grouping follows automatically:
+
 ```python
-print(Scheme(length=8, groups=(4, 4)).describe())
+Scheme(length=6).random()   # 'KKK-QCJ'
+Scheme(length=10).random()  # '3MV-THK-5Y73'
+```
+
+```python
+print(Scheme(length=10).describe([100_000]))
 ```
 
 ```
-26^7 = 8,031,810,176 identifiers (8 characters, shown as XXXX-XXXX)
-  at     10,000 members, a blind guess names a real one 1 in 803,181
-  at    100,000 members, a blind guess names a real one 1 in 80,318
-  at  1,000,000 members, a blind guess names a real one 1 in 8,032
+26^9 = 5,429,503,678,976 identifiers (10 characters, shown as XXX-XXX-XXXX)
+  at    100,000 members, a blind guess names a real one 1 in 54,295,037
 ```
 
-The last column is the number to choose by. A repeat drawn at random is not a
+That last column is the number to choose by. A repeat drawn at random is not a
 failure, because `random()` simply draws again and nobody sees it. An identifier
 that is easy to guess is a way to reach someone else's record.
 
@@ -146,29 +214,45 @@ identifier carries seven random ones.
 ## The last character catches mistakes
 
 Like the last digit of a credit card number. It catches **every** single-character
-mistake, and most swaps of neighbouring characters.
+mistake, and about 99.7% of swaps of neighbouring characters.
 
 That guarantee needs an alphabet with an even number of characters, which is why
-this one has twenty-six. An odd alphabet lets roughly one mistake in forty through
-unnoticed, so `Scheme` refuses to build one rather than quietly promising less
-than it delivers:
+this one has twenty-six. Over an odd alphabet roughly one single-character
+mistake in forty goes unnoticed, so `Scheme` refuses to build one rather than
+quietly promising less than it delivers:
 
 ```python
-from spokenid import Alphabet, Scheme, InvalidScheme
+from spokenid import Alphabet, InvalidScheme, Scheme
 
 odd = Alphabet.derive(lookalikes={"I": "1", "O": "0", "B": "8", "S": "5"})
-len(odd)  # 29
+len(odd)   # 29
 
 try:
     Scheme(alphabet=odd)
 except InvalidScheme as error:
     print(error)
-# a Luhn check character only catches every single-character mistake when the
-# alphabet has an even number of characters; this one has 29. ...
 ```
 
-Turn it off with `Scheme(check=False)` if you would rather have the extra
-character, and any odd alphabet then works.
+Both figures come from exhaustive enumeration, not sampling; the test is
+`tests/test_check.py::test_catches_every_single_character_mistake`, which checks
+1.3 million substitutions. Turn the check off with `Scheme(check=False)` if you
+would rather have the extra character, and any odd alphabet then works.
+
+## Errors
+
+Everything this library raises inherits from `SpokenIdError`, and each one also
+inherits from the built-in you would expect, so existing `except` clauses keep
+working.
+
+| Raised by | Error | Also a |
+|---|---|---|
+| `Scheme(...)` with impossible arguments | `InvalidScheme` | `ValueError` |
+| `random()` after repeated collisions | `SpaceExhausted` | `RuntimeError` |
+| `next()` past the end of the space | `SequenceExhausted` | `RuntimeError` |
+| `next()` on something unreadable | `Unreadable` | `ValueError` |
+
+`parse()` never raises. It returns a `Parsed` with `ok=False` and a `problem` you
+can show someone, whatever you hand it.
 
 ## Reading it out loud
 
@@ -179,6 +263,9 @@ phonetic("4KM7-PC2M")
 # '4 Kilo Mike 7, Papa Charlie 2 Mike'
 ```
 
+This is a plain NATO speller and does not validate anything, so run input
+through `parse()` before you read it back to someone.
+
 ## When not to use this
 
 - **You need to encode a number.** These identifiers are drawn, not encoded. Use
@@ -188,8 +275,8 @@ phonetic("4KM7-PC2M")
   constraints here cost you entropy for nothing.
 - **You need a secret.** An identifier is not a credential. Guessing resistance is
   a bonus; authentication is the thing that keeps records private.
-- **You need every neighbour swap caught.** The check character catches most, not
-  all. Damm's algorithm catches all and is not implemented here.
+- **You need every neighbour swap caught.** The check character catches almost
+  all, not all. Damm's algorithm catches all and is not implemented here.
 
 ## Known limits
 
@@ -206,16 +293,19 @@ problem well and has a better repair rule than anything else published, but keep
 `U`, is calibrated on an English list.
 [OpenMRS](https://github.com/openmrs/openmrs-module-idgen) issues patient
 identifiers with a Luhn check digit and keeps `A`, `E` and `U`; its `Mod25`
-validator uses an odd alphabet.
+validator uses an alphabet of 25 characters.
 
 ## Development
 
 ```bash
 uv sync
-uv run pytest
+uv run pytest        # tests, doctests, and every example on this page
 uv run mypy
 uv run ruff check .
 ```
+
+Changes are listed in [CHANGELOG.md](CHANGELOG.md). Contributions are welcome —
+see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Licence
 

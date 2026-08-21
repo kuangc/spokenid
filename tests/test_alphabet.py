@@ -90,3 +90,9 @@ def test_a_character_cannot_be_both_in_and_out() -> None:
 
     with pytest.raises(InvalidScheme, match="both excluded and in the alphabet"):
         Alphabet("ABC", (Excluded("A", "vowel", None),))
+
+
+@pytest.mark.parametrize("value", ["", "AB", "  ", 7, None])
+def test_explain_handles_things_that_are_not_one_character(value: object) -> None:
+    """'' used to be reported as a member, because '' in 'ABC' is True."""
+    assert "not a single character" in SPOKEN.explain(value)  # type: ignore[arg-type]

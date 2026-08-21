@@ -2,17 +2,38 @@
 
 from __future__ import annotations
 
+import math
 import secrets
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 
 from .alphabet import SPOKEN, Alphabet
 from .check import Luhn
-from .errors import InvalidScheme, SequenceExhausted, SpaceExhausted
+from .errors import InvalidScheme, SequenceExhausted, SpaceExhausted, Unreadable
 
 __all__ = ["Parsed", "Repair", "Scheme"]
 
 Taken = Callable[[str], bool]
+
+#: Characters per group when the caller does not choose. Four reads well aloud.
+PREFERRED_GROUP = 4
+
+
+def default_groups(length: int) -> tuple[int, ...]:
+    """Split ``length`` into even-sized groups of about four characters.
+
+    >>> default_groups(8)
+    (4, 4)
+    >>> default_groups(7)
+    (3, 4)
+    >>> default_groups(10)
+    (3, 3, 4)
+    """
+    if length <= 5:
+        return (length,)
+    count = math.ceil(length / PREFERRED_GROUP)
+    base, extra = divmod(length, count)
+    return tuple(base + (1 if i >= count - extra else 0) for i in range(count))
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,8 +86,12 @@ class Scheme:
     alphabet: Alphabet = SPOKEN
     length: int = 8
     """Total characters, including the check character when there is one."""
-    groups: Sequence[int] = (4, 4)
-    """How to split the identifier for reading, e.g. ``(4, 4)`` for ``XXXX-XXXX``."""
+    groups: Sequence[int] = ()
+    """How to split the identifier for reading, e.g. ``(4, 4)`` for ``XXXX-XXXX``.
+
+    Left empty, it follows ``length`` in groups of about four. After a scheme is
+    built this is always a filled tuple, never empty.
+    """
     separator: str = "-"
     check: bool = True
     """Append a character that catches typing mistakes."""
@@ -74,7 +99,8 @@ class Scheme:
     _checker: Luhn | None = field(init=False, repr=False, compare=False, default=None)
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "groups", tuple(self.groups))
+        chosen = tuple(self.groups) or default_groups(self.length)
+        object.__setattr__(self, "groups", chosen)
         if self.length < 2:
             raise InvalidScheme("an identifier needs at least two characters")
         if sum(self.groups) != self.length:
@@ -142,8 +168,8 @@ class Scheme:
                 return candidate
         raise SpaceExhausted(
             f"{attempts} collisions in a row drawing from {self.space:,} "
-            f"identifiers. The population has outgrown this scheme; raise "
-            f"Scheme(length={self.length + 1})."
+            f"identifiers. The population has outgrown this scheme; use a "
+            f"longer one, such as Scheme(length={self.length + 1})."
         )
 
     def first(self) -> str:
@@ -163,13 +189,18 @@ class Scheme:
 
             scheme.next(previous, step=random.randint(1, 50))
 
-        Raises :class:`~spokenid.SequenceExhausted` at the end of the space.
+        This assumes one writer. Two processes that read the same stored value
+        both get the same answer, so whatever holds the last issued identifier
+        has to serialise access to it, with a row lock or a single sequence.
+
+        Raises :class:`~spokenid.Unreadable` if ``previous`` is not an
+        identifier, and :class:`~spokenid.SequenceExhausted` at the end.
         """
         if step < 1:
             raise ValueError("step must be at least 1")
         read = self.parse(previous)
         if not read.ok or read.value is None:
-            raise ValueError(f"cannot read {previous!r}: {read.problem}")
+            raise Unreadable(f"cannot read {previous!r}: {read.problem}")
         flat = self._flatten(read.value)
         body = flat[: self.body_length]
 
@@ -177,7 +208,8 @@ class Scheme:
         if position >= self.space:
             raise SequenceExhausted(
                 f"{previous!r} is within {step} of the last identifier this "
-                f"scheme can express. Raise Scheme(length={self.length + 1})."
+                f"scheme can express. Use a longer one, such as "
+                f"Scheme(length={self.length + 1})."
             )
         return self._finish(self._from_int(position))
 
@@ -206,7 +238,7 @@ class Scheme:
             cleaned = cleaned.replace(self.separator, "")
         return cleaned.upper()
 
-    def parse(self, raw: str | None) -> Parsed:
+    def parse(self, raw: object) -> Parsed:
         """Read something a person typed.
 
         Fixes case and spacing, and reinterprets any character that was dropped
@@ -217,6 +249,11 @@ class Scheme:
         """
         if raw is None:
             return Parsed(False, problem="no identifier was given")
+        if not isinstance(raw, str):
+            return Parsed(
+                False,
+                problem=(f"an identifier is text, and this is {type(raw).__name__}"),
+            )
 
         flat = self._flatten(raw)
         if not flat:
@@ -250,7 +287,7 @@ class Scheme:
             )
         return Parsed(True, self._group(fixed), tuple(repairs))
 
-    def validate(self, raw: str | None) -> bool:
+    def validate(self, raw: object) -> bool:
         """True when ``raw`` is already a correct identifier, needing no repair."""
         return self.parse(raw).exact
 

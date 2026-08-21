@@ -635,7 +635,6 @@ wheels = [
 
 [[package]]
 name = "spokenid"
-version = "0.1.0"
 source = { editable = "." }
 
 [package.dev-dependencies]
