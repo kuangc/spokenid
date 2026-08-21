@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import errno
 import os
 import sys
 from collections.abc import Sequence
@@ -71,6 +72,15 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+#: Errors a write raises when the far end of a pipe has gone. Windows reports
+#: EINVAL rather than the BrokenPipeError POSIX gives, so both are handled.
+_PIPE_GONE = frozenset({errno.EPIPE, errno.EINVAL, errno.ESHUTDOWN})
+
+
+def _is_closed_pipe(error: OSError) -> bool:
+    return isinstance(error, BrokenPipeError) or error.errno in _PIPE_GONE
+
+
 def _abandon_output() -> None:
     """Point both streams at nothing, so the exit flush cannot raise again."""
     with contextlib.suppress(OSError, ValueError):
@@ -87,12 +97,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     rather than being left to the interpreter: anything shorter than the 8 KB
     buffer is still unwritten when the command body returns, so the failure
     would otherwise land outside every handler and exit 120 with a traceback.
+
+    Returns 141, the shell's convention for a command killed by SIGPIPE, on
+    every platform. Windows has no such signal, but a single answer is easier
+    to script against than two.
     """
     try:
         status = _run(argv)
         sys.stdout.flush()
         sys.stderr.flush()
-    except BrokenPipeError:
+    except OSError as error:
+        if not _is_closed_pipe(error):
+            raise
         _abandon_output()
         return 141
     except SystemExit:
@@ -101,7 +117,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         try:
             sys.stdout.flush()
             sys.stderr.flush()
-        except BrokenPipeError:
+        except OSError as error:
+            if not _is_closed_pipe(error):
+                raise
             _abandon_output()
             return 141
         raise
