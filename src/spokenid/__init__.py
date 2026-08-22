@@ -4,6 +4,11 @@
 >>> scheme = Scheme()
 >>> scheme.parse("o000-oooo").value
 '0000-0000'
+
+The design is Ryan Hennig's (https://github.com/ryanhennig), written at Antara
+Health in 2020 for clinicians in Kenya reading identifiers over the phone. The
+repair rule follows Douglas Crockford's Base32; the shape of an issuing service
+follows the OpenMRS idgen module. See the README for both.
 """
 
 from __future__ import annotations

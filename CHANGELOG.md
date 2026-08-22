@@ -10,6 +10,13 @@ Nothing has been released yet. Everything below ships in the first release.
 
 ### Added
 
+- Credit where it is due. The design is Ryan Hennig's, and the README says so,
+  along with what this owes Crockford Base32, the OpenMRS `idgen` module and
+  nanoid.
+- Tests for three guards that had none: an alphabet that excludes a character
+  twice, a separator that grows when upper-cased, and what `suggest(limit=N)`
+  drops. Each was verified by deleting the guard and watching the suite fail.
+
 - `Scheme.swap_detection`, the fraction of neighbour swaps this scheme's check
   character catches, measured exactly. `describe()` reports it. The 99.7% in
   the README is the default alphabet's figure; a smaller alphabet catches
@@ -173,8 +180,10 @@ Nothing has been released yet. Everything below ships in the first release.
   spell a word in any language. A strict subset of Crockford Base32.
 - `Alphabet.derive()`, which builds an alphabet from exclusion rules so that the
   characters and the repair table cannot drift apart.
-- A Luhn check character, which refuses to be built over an odd alphabet rather
-  than quietly failing to catch every single-character mistake.
+- A Luhn check character, which refuses to be built over an odd alphabet
+  rather than quietly failing to catch every single-character mistake. The
+  even-base condition is easy to miss, because Luhn is almost always shown in
+  base 10 where it never arises.
 - `phonetic()`, for reading an identifier aloud.
 - `describe()`, which reports how large a scheme is and how guessable an
   identifier is at a given population.

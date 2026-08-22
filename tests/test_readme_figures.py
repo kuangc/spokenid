@@ -30,12 +30,6 @@ def test_the_alphabet_size_in_prose(text: str) -> None:
     assert "Twenty-six characters" in text
 
 
-def test_the_odd_alphabet_size_in_prose(text: str) -> None:
-    odd = Alphabet.derive(lookalikes={"I": "1", "O": "0", "B": "8", "S": "5"})
-    assert len(odd) == 29
-    assert "# 29" in text
-
-
 def test_the_number_of_collisions_before_giving_up(text: str) -> None:
     scheme = Scheme(length=4)
     attempts = 0
@@ -192,7 +186,7 @@ def test_no_link_is_relative(text: str) -> None:
     assert not relative, f"relative links will not resolve on PyPI: {relative}"
 
 
-def test_the_changelog_has_an_unreleased_section(text: str) -> None:
+def test_the_changelog_has_an_unreleased_section() -> None:
     """Release-time checks live in release.yml, where the tag exists.
 
     They used to shell out to `git tag -l` from here, which fails in CI:

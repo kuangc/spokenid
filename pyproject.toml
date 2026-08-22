@@ -96,6 +96,9 @@ select = [
     "ANN",             # annotations
     "S",               # bandit: common security problems
     "PT",              # pytest style
+    "ARG",             # arguments nothing uses
+    "C4",              # comprehensions
+    "RET",             # returns
 ]
 ignore = ["D105", "D107", "D203", "D213", "ANN401"]
 

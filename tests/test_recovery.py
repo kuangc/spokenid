@@ -63,7 +63,8 @@ def _gapped(scheme: Scheme, current: str | None) -> str:
     )
 
 
-def _random(scheme: Scheme, current: str | None) -> str:
+def _random(scheme: Scheme, current: str | None) -> str:  # noqa: ARG001
+    """`current` is unused; the signature has to match the other issuers."""
     return scheme.random()
 
 

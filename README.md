@@ -496,15 +496,44 @@ sorted("".join(sorted(pair)) for pair in SPOKEN.similar)
 # ['0D', '0Q', '49', '56', '7T', 'VW']
 ```
 
+## Where this came from
+
+The design is [Ryan Hennig](https://github.com/ryanhennig)'s. He wrote the
+original at [Antara Health](https://github.com/antarahealth) in 2020, for
+clinicians in Kenya reading member identifiers to each other over the phone,
+and worked out the two rules this library is built on: strip the vowels so an
+identifier cannot spell a word in any language, and for each pair that gets
+misread, keep one. It ran in production for six years. This is that idea, with
+the parts the original left as TODOs.
+
 ## Prior art
 
-[Crockford Base32](https://www.crockford.com/base32.html) solves the lookalike
-problem well and has a better repair rule than anything else published, but keeps
-`A` and `E`, so its identifiers can still spell words. Its one vowel exclusion,
-`U`, is calibrated on an English list.
-[OpenMRS](https://github.com/openmrs/openmrs-module-idgen) issues patient
-identifiers with a Luhn check digit and keeps `A`, `E` and `U`; its `Mod25`
-validator uses an alphabet of 25 characters.
+Good ideas taken from other people, all of them worth reading:
+
+[**Crockford Base32**](https://www.crockford.com/base32.html) is where the
+repair rule comes from. Douglas Crockford saw that if you drop the letter and
+keep the digit, a decoder can resolve a misreading rather than reject it, and
+he specified it years before anyone here thought about it. This alphabet is a
+strict subset of his, so every identifier it issues is also a valid Crockford
+string. He and Kyzer Davis now have it at the IETF as
+[draft-crockford-davis-base32-for-humans](https://datatracker.ietf.org/doc/draft-crockford-davis-base32-for-humans/).
+
+[**OpenMRS**](https://github.com/openmrs/openmrs-module-idgen) is the reason
+this library has a `taken` callback and two issuing modes rather than one. Its
+`idgen` module has been generating patient identifiers for clinics in
+low-resource settings since 2009, and it treats identifier issuance as a real
+service — pools, remote sources, pluggable validators, check digits — where
+most libraries treat it as a one-line helper. The design here is narrower on
+purpose, and much of what it does at all is because OpenMRS showed it mattered.
+
+[**nanoid**](https://github.com/ai/nanoid) and its
+[dictionary](https://github.com/CyberAP/nanoid-dictionary) got to a vowel-free
+lookalike-free alphabet independently, which was a useful check that the idea
+was sound.
+
+[**Damm's algorithm**](https://en.wikipedia.org/wiki/Damm_algorithm) catches
+every adjacent transposition, which Luhn does not. It is not implemented here
+and it is the obvious next thing.
 
 ## Development
 

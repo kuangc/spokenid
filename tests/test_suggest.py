@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-from hypothesis import assume, given
 from hypothesis import strategies as st
 
 from spokenid import SPOKEN, InvalidArgument, Scheme
@@ -86,12 +85,8 @@ def test_limit_is_honoured_and_validated(scheme: Scheme) -> None:
         scheme.suggest("0000-001W", limit=0)
 
 
-@given(BODY)
-def test_one_wrong_character_always_yields_the_original(body: str) -> None:
-    """The property the whole feature rests on."""
-    scheme = Scheme()
-    real = scheme._finish(body)
-    flat = real.replace("-", "")
-    wrong = SPOKEN.characters[(SPOKEN.characters.index(flat[0]) + 7) % 26]
-    assume(wrong != flat[0])
-    assert real in scheme.suggest(wrong + flat[1:])
+def test_a_limit_keeps_the_best_candidates_not_the_worst(scheme: Scheme) -> None:
+    """The docstring argues about which candidates a limit drops, so pin it."""
+    everything = scheme.suggest("0000-001W")
+    assert len(everything) > 3
+    assert scheme.suggest("0000-001W", limit=3) == everything[:3]

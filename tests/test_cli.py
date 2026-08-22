@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import os
 
 import pytest
@@ -144,7 +143,6 @@ def test_a_closed_pipe_is_quiet_for_every_subcommand() -> None:
     8 KB buffer, so eight of nine subcommands still exited 120 noisily. The
     flush has to happen where the handler can see it.
     """
-    import os
     import subprocess
     import sys
 
@@ -175,11 +173,21 @@ def test_a_closed_pipe_is_quiet_for_every_subcommand() -> None:
 def test_a_batch_never_contains_the_same_identifier_twice(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """random() draws once; a batch from one command still has to be unique."""
-    assert main(["new", "-n", "300", "--length", "4"]) == 0
+    """random() draws once; a batch from one command still has to be unique.
+
+    Length 3 leaves a 676-wide space, so drawing 200 without de-duplicating
+    repeats with probability 1 - 1e-13. At length 4 the test passed by luck
+    often enough to miss a real regression.
+    """
+    assert main(["new", "-n", "200", "--length", "3"]) == 0
     printed = capsys.readouterr().out.split()
-    assert len(printed) == 300
-    assert len(set(printed)) == 300
+    assert len(printed) == 200
+    assert len(set(printed)) == 200
+
+
+#: One descriptor onto /dev/null, shared by every fake stream. Opening one per
+#: instance leaked them, and closing was never wired up.
+_DEVNULL = os.open(os.devnull, os.O_WRONLY)
 
 
 class _ClosedPipe:
@@ -193,7 +201,6 @@ class _ClosedPipe:
 
     def __init__(self, error: OSError) -> None:
         self._error = error
-        self._fd = os.open(os.devnull, os.O_WRONLY)
 
     def write(self, _: str) -> int:
         raise self._error
@@ -202,20 +209,9 @@ class _ClosedPipe:
         raise self._error
 
     def fileno(self) -> int:
-        return self._fd
-
-    def close(self) -> None:
-        with contextlib.suppress(OSError):
-            os.close(self._fd)
+        return _DEVNULL
 
 
-@pytest.mark.parametrize(
-    "error",
-    [
-        BrokenPipeError(32, "Broken pipe"),
-        OSError(22, "Invalid argument"),  # what Windows raises
-    ],
-)
 def _both_streams_closed(monkeypatch: pytest.MonkeyPatch, error: OSError) -> None:
     """Replace both streams, so _abandon_output cannot reach a real descriptor.
 
@@ -253,3 +249,12 @@ def test_an_unrelated_oserror_is_not_swallowed(
     _both_streams_closed(monkeypatch, OSError(28, "No space left"))
     with pytest.raises(OSError, match="No space left"):
         main(["new"])
+
+
+def test_an_unrelated_oserror_on_the_argparse_path_is_not_swallowed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """--version leaves through SystemExit, which has its own flush."""
+    _both_streams_closed(monkeypatch, OSError(28, "No space left"))
+    with pytest.raises(OSError, match="No space left"):
+        main(["--version"])

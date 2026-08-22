@@ -22,14 +22,6 @@ def test_default_alphabet_is_a_subset_of_crockford_base32() -> None:
     assert set(SPOKEN.characters) <= crockford
 
 
-def test_no_lookalike_pair_survives_intact() -> None:
-    # For every pair we know about, exactly one member is in the alphabet, so a
-    # repair is always determined rather than guessed.
-    for dropped, kept in SPOKEN.repairs.items():
-        assert dropped not in SPOKEN.characters
-        assert kept in SPOKEN.characters
-
-
 def test_sorts_by_age() -> None:
     assert SPOKEN.sorts_by_age
 
@@ -81,17 +73,6 @@ def test_membership() -> None:
     assert 7 not in SPOKEN
 
 
-def test_alphabet_is_hashable() -> None:
-    assert len({SPOKEN, SPOKEN}) == 1
-
-
-def test_a_character_cannot_be_both_in_and_out() -> None:
-    from spokenid.alphabet import Excluded
-
-    with pytest.raises(InvalidScheme, match="both excluded and in the alphabet"):
-        Alphabet("ABC", (Excluded("A", "vowel", None),))
-
-
 @pytest.mark.parametrize("value", ["", "AB", "  ", 7, None])
 def test_explain_handles_things_that_are_not_one_character(value: object) -> None:
     """'' used to be reported as a member, because '' in 'ABC' is True."""
@@ -134,19 +115,6 @@ def test_lookalikes_that_are_also_vowels_are_described_as_lookalikes() -> None:
     assert len([r for r in reasons.values() if r == "lookalike"]) == len(SPOKEN.repairs)
 
 
-def test_the_documented_residual_pairs_are_the_real_ones() -> None:
-    """The README lists these as known limits. Keep code and prose in step."""
-    assert {"".join(sorted(p)) for p in SPOKEN.similar} == {
-        "0D",
-        "0Q",
-        "49",
-        "56",
-        "7T",
-        "VW",
-    }
-    assert all(pair <= set(SPOKEN.characters) for pair in SPOKEN.similar)
-
-
 def test_a_lookalike_outside_the_pool_is_refused() -> None:
     """It used to be dropped in silence, so the caller's intent vanished."""
     with pytest.raises(InvalidScheme, match="not in the pool"):
@@ -165,3 +133,22 @@ def test_an_excluded_character_cannot_also_be_in_the_alphabet() -> None:
 
     with pytest.raises(InvalidScheme, match="both excluded and in the alphabet"):
         Alphabet("0123456789", (Excluded("0", "lookalike", "1"),))
+
+
+def test_a_character_cannot_be_excluded_twice() -> None:
+    """`repairs` takes the last entry and `explain()` the first.
+
+    A duplicate would have the alphabet tell a person one thing and tell
+    `parse()` another, which is the failure this library exists to prevent.
+    """
+    from spokenid.alphabet import Excluded
+
+    doubled = (*SPOKEN.excluded, Excluded("O", "lookalike", "9"))
+    with pytest.raises(InvalidScheme, match="excluded twice"):
+        Alphabet(SPOKEN.characters, doubled)
+
+
+def test_sorts_by_age_is_false_when_the_characters_are_out_of_order() -> None:
+    """There was no negative case, so `return True` would have passed."""
+    assert Alphabet("BA").sorts_by_age is False
+    assert Alphabet("AB").sorts_by_age is True

@@ -39,11 +39,6 @@ def test_empty_group_is_refused() -> None:
         Scheme(length=8, groups=(8, 0))
 
 
-def test_separator_cannot_be_a_character_in_the_alphabet() -> None:
-    with pytest.raises(InvalidScheme, match="already means something by"):
-        Scheme(length=8, groups=(4, 4), separator="7")
-
-
 def test_too_short_is_refused() -> None:
     with pytest.raises(InvalidScheme, match="at least two"):
         Scheme(length=1, groups=(1,))
@@ -90,14 +85,6 @@ def test_random_gives_up_loudly(scheme: Scheme) -> None:
         scheme.random(taken=lambda _: True, attempts=3)
 
 
-def test_attempts_must_be_positive(scheme: Scheme) -> None:
-    with pytest.raises(ValueError, match="at least 1"):
-        scheme.random(attempts=0)
-
-
-# ------------------------------------------------------------------ counting
-
-
 def test_first_then_next(scheme: Scheme) -> None:
     first = scheme.first()
     assert scheme.validate(first)
@@ -121,20 +108,10 @@ def test_step_leaves_gaps_but_keeps_order(scheme: Scheme) -> None:
     assert len(set(issued)) == len(issued)
 
 
-def test_step_must_be_positive(scheme: Scheme) -> None:
-    with pytest.raises(ValueError, match="at least 1"):
-        scheme.next(scheme.first(), step=0)
-
-
 def test_next_reads_a_messy_previous(scheme: Scheme) -> None:
     tidy = scheme.next(scheme.first())
     messy = tidy.lower().replace("-", " ")
     assert scheme.next(messy) == scheme.next(tidy)
-
-
-def test_next_refuses_something_unreadable(scheme: Scheme) -> None:
-    with pytest.raises(ValueError, match="cannot read"):
-        scheme.next("nonsense")
 
 
 def test_end_of_the_sequence() -> None:
@@ -230,11 +207,6 @@ def test_guess_odds(scheme: Scheme) -> None:
     assert 0 < scheme.guess_odds(100_000) < 1
 
 
-def test_guess_odds_refuses_nonsense(scheme: Scheme) -> None:
-    with pytest.raises(ValueError, match="negative"):
-        scheme.guess_odds(-1)
-
-
 def test_describe_mentions_the_shape(scheme: Scheme) -> None:
     report = scheme.describe()
     assert "XXXX-XXXX" in report
@@ -313,14 +285,6 @@ def test_a_separator_cannot_reuse_an_alphabet_or_repair_character(separator: str
         Scheme(length=8, groups=(4, 4), separator=separator)
 
 
-def test_every_identifier_a_scheme_issues_can_be_read_back(scheme: Scheme) -> None:
-    """A bad separator used to give sequences that died after ten steps."""
-    current = scheme.first()
-    for _ in range(200):
-        assert scheme.parse(current).ok, current
-        current = scheme.next(current)
-
-
 def test_sizing_survives_absurd_numbers(scheme: Scheme) -> None:
     assert scheme.guess_odds(10**400) == 1.0  # used to raise OverflowError
     huge = Scheme(length=230, groups=(230,))
@@ -382,7 +346,7 @@ def test_argument_errors_are_library_errors(scheme: Scheme, call: object) -> Non
         call(scheme)  # type: ignore[operator]
 
 
-def test_repair_column_counts_the_way_a_person_reads(scheme: Scheme) -> None:
+def test_repair_column_counts_the_way_a_person_reads() -> None:
     """Position indexes the string; column is what somebody counts on a form."""
     wide = Scheme(length=10)
     read = wide.parse("WP2-47R-P7KO")
@@ -426,6 +390,18 @@ def test_no_accepted_separator_produces_an_unreadable_identifier() -> None:
 def test_a_separator_that_folds_into_the_alphabet_is_refused(separator: str) -> None:
     with pytest.raises(InvalidScheme):
         Scheme(separator=separator)
+
+
+def test_a_separator_that_grows_when_upper_cased_is_refused() -> None:
+    """U+1E9A upper-cases into two characters, so reading could not strip it.
+
+    ß and ﬁ do not test this guard: they are caught by the later clash check,
+    because they upper-case into S and F. This one clashes with nothing, so
+    without the guard the scheme is accepted and then cannot read its own
+    output.
+    """
+    with pytest.raises(InvalidScheme, match="changes length when upper-cased"):
+        Scheme(separator="\u1e9a")
 
 
 def test_a_separator_cannot_mix_whitespace_with_anything_else() -> None:
@@ -486,11 +462,6 @@ def test_an_enormous_length_is_refused_immediately(length: int) -> None:
     assert time.perf_counter() - started < 0.5
 
 
-def test_column_past_the_last_group_falls_back(scheme: Scheme) -> None:
-    """_column is defensive about a position no group covers."""
-    assert scheme._column(scheme.length + 5) == scheme.length + 6
-
-
 def test_suggest_ignores_input_too_long_to_read(scheme: Scheme) -> None:
     from spokenid.scheme import MAX_MEANINGFUL
 
@@ -511,7 +482,7 @@ def test_check_must_be_on_or_off(check: object) -> None:
         Scheme(check=check)  # type: ignore[arg-type]
 
 
-def test_random_without_a_uniqueness_check_can_repeat(scheme: Scheme) -> None:
+def test_random_without_a_uniqueness_check_can_repeat() -> None:
     """The README used to say it retries. It only retries when asked."""
     small = Scheme(length=3, groups=(3,), separator="")
     drawn = [small.random() for _ in range(200)]

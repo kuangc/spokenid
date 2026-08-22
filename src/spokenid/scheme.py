@@ -224,7 +224,9 @@ class Scheme:
             if position < seen + size:
                 return position + 1 + group_number * len(self.separator)
             seen += size
-        return position + 1
+        # Unreachable from parse(), which only ever asks about a position
+        # inside the identifier. Here so the function is total.
+        return position + 1  # pragma: no cover
 
     def _finish(self, body: str) -> str:
         if self._checker is not None:

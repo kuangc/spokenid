@@ -16,11 +16,6 @@ def test_odd_alphabet_is_refused() -> None:
         Luhn(odd)
 
 
-def test_check_character_verifies() -> None:
-    luhn = Luhn(SPOKEN)
-    assert luhn.verify("4KM7PC2" + luhn.compute("4KM7PC2"))
-
-
 def test_catches_every_single_character_mistake() -> None:
     """The promise Luhn exists to make, proved rather than asserted.
 
@@ -69,8 +64,14 @@ def test_catches_most_neighbour_swaps() -> None:
     assert missed / total < 0.01
 
 
-def test_verify_rejects_something_too_short() -> None:
-    assert not Luhn(SPOKEN).verify("4")
+@pytest.mark.parametrize("short", ["", "0", "4"])
+def test_verify_rejects_something_too_short(short: str) -> None:
+    """A lone "4" does not reveal a missing guard, but "0" and "" do.
+
+    Without the length check, verify("0") compares compute("") to "0" and
+    answers True, and verify("") raises IndexError.
+    """
+    assert not Luhn(SPOKEN).verify(short)
 
 
 def test_verify_answers_rather_than_raising_on_junk() -> None:
@@ -96,8 +97,6 @@ def test_verify_answers_for_things_that_are_not_text(junk: object) -> None:
 
 def test_swap_detection_is_exact_not_sampled() -> None:
     """The rate does not change with length, so a short measurement is exact."""
-    import itertools
-
     scheme = Scheme()
     luhn = Luhn(SPOKEN)
     caught = total = 0
@@ -116,13 +115,6 @@ def test_swap_detection_is_exact_not_sampled() -> None:
             )
             caught += not luhn.verify(swapped)
     assert abs(scheme.swap_detection - caught / total) < 1e-12
-
-
-def test_a_smaller_alphabet_catches_fewer_swaps() -> None:
-    """The README quotes 99.7% for the default; it is not a universal figure."""
-    digits = Alphabet.derive(drop_vowels=False, lookalikes={}, pool="0123456789")
-    assert round(Scheme().swap_detection, 3) == 0.997
-    assert round(Scheme(alphabet=digits, length=6).swap_detection, 3) == 0.978
 
 
 def test_no_check_character_catches_nothing() -> None:

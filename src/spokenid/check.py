@@ -15,12 +15,13 @@ class Luhn:
     """A Luhn mod N check character.
 
     Catches every single-character mistake and most swaps of neighbouring
-    characters. It only manages the first of those in an alphabet with an even
-    number of characters, so an odd one is refused rather than quietly
-    delivering less than it promises.
+    characters.
 
-    OpenMRS ships a Luhn validator over a 25-character set today, which lets
-    roughly one mistyped character in forty through unnoticed.
+    The first of those holds only in an alphabet with an even number of
+    characters. Over an odd one, roughly one mistyped character in forty goes
+    unnoticed, so an odd alphabet is refused rather than quietly delivering
+    less than it promises. The condition is easy to miss, because Luhn is
+    almost always presented in base 10 where it never comes up.
     """
 
     alphabet: Alphabet
