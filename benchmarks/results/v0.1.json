@@ -1,0 +1,232 @@
+{
+  "algorithm": {
+    "alphabet": "0123456789CDFHJKMNPQRTVWXY",
+    "alphabet_sha256": "19cded763fe75f2d4ad645b5d2e91d9fbc740158863ddb4e6df6a211cd2e0810",
+    "checker": "Damm",
+    "damm_table_encoding": "row-major unsigned bytes, one byte per entry",
+    "damm_table_sha256": "a0610f93f3294c2a271d3bc2f84dc5a84ffcea024c6c5eb7cd7ea996f7afa144",
+    "evaluation_model": "single-edit operation events: substitutions, adjacent unequal-symbol transpositions, insertions, and deletions; suggestion cases sampled uniformly without replacement",
+    "evaluation_model_sha256": "e664af6f7fc8bbc2ad1ddffcbefc894ff4af93cc2e43c82262e372347601ca65",
+    "sha256_counter_stream": "SHA256(domain || UTF8(seed) || NUL || uint64be(counter))",
+    "sha256_counter_stream_domain_hex": "73706f6b656e69642d6576616c756174696f6e2d763100",
+    "sha256_counter_stream_spec_sha256": "bbc34779ec81c0ba5026626a78b7b516d2e8769e23a50f47530e24dbed64dff5"
+  },
+  "cohorts": {
+    "dense": {
+      "errors": {
+        "adjacent_transposition": {
+          "accepted_another_issued": 0,
+          "accepted_same": 0,
+          "accepted_unissued": 0,
+          "denominator": 3196,
+          "detected": 3196
+        },
+        "deletion": {
+          "accepted_another_issued": 0,
+          "accepted_same": 0,
+          "accepted_unissued": 0,
+          "denominator": 8000,
+          "detected": 8000
+        },
+        "insertion": {
+          "accepted_another_issued": 0,
+          "accepted_same": 0,
+          "accepted_unissued": 0,
+          "denominator": 234000,
+          "detected": 234000
+        },
+        "substitution": {
+          "accepted_another_issued": 0,
+          "accepted_same": 0,
+          "accepted_unissued": 0,
+          "denominator": 200000,
+          "detected": 200000
+        }
+      },
+      "identifiers_sha256": "34567670cf568caf16e64aad641ebc15ac22cf1ddfa931f034289f3f21477e59",
+      "maximum_position": 999,
+      "members": 1000,
+      "positions_sha256": "cdcaf63295eb44b199f8945bea9040fc067d26c0af90e23fefc77367534bc75e",
+      "suggestions": {
+        "adjacent_transposition": {
+          "cases_sha256": "ee7ab60d2fd97ad2bea28b887aa32abac2e38e371d384b0de5b32650902b9278",
+          "denominator": 128,
+          "recovered_ambiguous": 74,
+          "recovered_unique": 54,
+          "source_missing": 0
+        },
+        "deletion": {
+          "cases_sha256": "07c940d142aefb01bdbba58a11969e9fd52fab3a4321898f1d883ada51011232",
+          "denominator": 128,
+          "recovered_ambiguous": 38,
+          "recovered_unique": 90,
+          "source_missing": 0
+        },
+        "insertion": {
+          "cases_sha256": "a2b6f96712dc306589e017eb7707b98a795961a831698abe20edb68adaef825c",
+          "denominator": 128,
+          "recovered_ambiguous": 5,
+          "recovered_unique": 123,
+          "source_missing": 0
+        },
+        "substitution": {
+          "cases_sha256": "786903389d5f7a16939c749695464fc46d91776edd5b8c327c2c0b2f6248a0f4",
+          "denominator": 128,
+          "recovered_ambiguous": 43,
+          "recovered_unique": 85,
+          "source_missing": 0
+        }
+      }
+    },
+    "gapped": {
+      "errors": {
+        "adjacent_transposition": {
+          "accepted_another_issued": 0,
+          "accepted_same": 0,
+          "accepted_unissued": 0,
+          "denominator": 4143,
+          "detected": 4143
+        },
+        "deletion": {
+          "accepted_another_issued": 0,
+          "accepted_same": 0,
+          "accepted_unissued": 0,
+          "denominator": 8000,
+          "detected": 8000
+        },
+        "insertion": {
+          "accepted_another_issued": 0,
+          "accepted_same": 0,
+          "accepted_unissued": 0,
+          "denominator": 234000,
+          "detected": 234000
+        },
+        "substitution": {
+          "accepted_another_issued": 0,
+          "accepted_same": 0,
+          "accepted_unissued": 0,
+          "denominator": 200000,
+          "detected": 200000
+        }
+      },
+      "identifiers_sha256": "5b635e2d7a847116f947cfa4058b92ba0485de839a12d2c48884296515bbeeec",
+      "maximum_position": 25765,
+      "members": 1000,
+      "positions_sha256": "9598842107e98d4e38fb9009482b07a39b844817d8328b804316e42054c745f0",
+      "suggestions": {
+        "adjacent_transposition": {
+          "cases_sha256": "72475f58f5fd8d18693c7112120769761f8a7376118aed8ef162f2e7a587503b",
+          "denominator": 128,
+          "recovered_ambiguous": 13,
+          "recovered_unique": 115,
+          "source_missing": 0
+        },
+        "deletion": {
+          "cases_sha256": "303f9ea96e9890f3d45731c202465a6a81dfedd30688d9226f0fbd03c5e6b30c",
+          "denominator": 128,
+          "recovered_ambiguous": 6,
+          "recovered_unique": 122,
+          "source_missing": 0
+        },
+        "insertion": {
+          "cases_sha256": "e3c41e2c4161215160e8b35be2b10b2b51593208126f708a4e1871b88d372c9d",
+          "denominator": 128,
+          "recovered_ambiguous": 0,
+          "recovered_unique": 128,
+          "source_missing": 0
+        },
+        "substitution": {
+          "cases_sha256": "c29d7300bd3af0c8c1a23b0f7f9528dee5ad5aebb734c5c6fdbc6fdf53df38d5",
+          "denominator": 128,
+          "recovered_ambiguous": 7,
+          "recovered_unique": 121,
+          "source_missing": 0
+        }
+      }
+    },
+    "uniform": {
+      "errors": {
+        "adjacent_transposition": {
+          "accepted_another_issued": 0,
+          "accepted_same": 0,
+          "accepted_unissued": 0,
+          "denominator": 6728,
+          "detected": 6728
+        },
+        "deletion": {
+          "accepted_another_issued": 0,
+          "accepted_same": 0,
+          "accepted_unissued": 0,
+          "denominator": 8000,
+          "detected": 8000
+        },
+        "insertion": {
+          "accepted_another_issued": 0,
+          "accepted_same": 0,
+          "accepted_unissued": 0,
+          "denominator": 234000,
+          "detected": 234000
+        },
+        "substitution": {
+          "accepted_another_issued": 0,
+          "accepted_same": 0,
+          "accepted_unissued": 0,
+          "denominator": 200000,
+          "detected": 200000
+        }
+      },
+      "identifiers_sha256": "a29757c856e6150d0993568d90038252b79d4796c878d9c440b399cb8f9d6a3d",
+      "maximum_position": 8027358094,
+      "members": 1000,
+      "positions_sha256": "9f4c73a87f71b78a6bf5c55d0ffe7514a73a72de8f80c1224067f95962f3164d",
+      "suggestions": {
+        "adjacent_transposition": {
+          "cases_sha256": "36826470417d3c5b77a94b705661bcd77de38534fa8061b245922282990144f9",
+          "denominator": 128,
+          "recovered_ambiguous": 0,
+          "recovered_unique": 128,
+          "source_missing": 0
+        },
+        "deletion": {
+          "cases_sha256": "a38e3fc5088fd233544ff1f4fb2ed4088f5a6d6a6f0c94839b16ad2a1d9b5bb3",
+          "denominator": 128,
+          "recovered_ambiguous": 0,
+          "recovered_unique": 128,
+          "source_missing": 0
+        },
+        "insertion": {
+          "cases_sha256": "eef1d262bffb31b925c60d921a3ecb80775d247c11f7acfdefed72d20a84c858",
+          "denominator": 128,
+          "recovered_ambiguous": 0,
+          "recovered_unique": 128,
+          "source_missing": 0
+        },
+        "substitution": {
+          "cases_sha256": "a8e826104aa5200649466a8a46316eb760523486fd343e632b54431bfaacb142",
+          "denominator": 128,
+          "recovered_ambiguous": 0,
+          "recovered_unique": 128,
+          "source_missing": 0
+        }
+      }
+    }
+  },
+  "configuration": {
+    "body_length": 7,
+    "cohort_seed": "default-v1",
+    "gap_step_maximum": 50,
+    "gap_step_minimum": 1,
+    "groups": [
+      4,
+      4
+    ],
+    "length": 8,
+    "members": 1000,
+    "profile": "full",
+    "separator": "-",
+    "suggestion_cases_per_error_class": 128,
+    "suggestion_seed_template": "suggestions/{cohort}/{error_kind}"
+  },
+  "schema_version": 1,
+  "tool_version": 1
+}
