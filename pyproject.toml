@@ -69,6 +69,7 @@ include = [
     "src",
     "tests",
     "scripts",
+    "docs",
     ".github/workflows",
     "benchmarks",
     "README.md",
