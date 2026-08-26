@@ -176,6 +176,41 @@ arbitrary multiple errors or non-adjacent swaps. Fixed-length parsing, not Damm,
 rejects a single insertion or deletion of an identifier symbol; whitespace and the
 configured separator are formatting and are deliberately ignored.
 
+**What that limit costs depends on how you allocate.** Within the guarantees
+above nothing slips through, so the choice does not matter. Outside them it
+does. Two symbols mistyped at once escape the check character about 3% of the
+time, and one symbol misheard consistently throughout escapes about 15% of the
+time. An escaped value is only dangerous if it happens to be an identifier you
+issued, and that is a question of spacing: allocate at random and issued values
+sit far apart in the space, so an escaped value is almost never one of them;
+allocate densely with `next(step=1)` and they sit adjacent, so it often is.
+Measure it for your own allocation before choosing:
+
+```python
+import random
+
+dense = Scheme()
+issued, previous = [], None
+for _ in range(2000):
+    previous = dense.first() if previous is None else dense.next(previous)
+    issued.append(previous)
+held = set(issued)
+
+collisions = 0
+rng = random.Random(0)
+for real in issued:
+    flat = real.replace(dense.separator, "")
+    wrong = list(flat)
+    for position in rng.sample(range(len(flat)), 2):
+        wrong[position] = rng.choice(dense.alphabet.characters)
+    attempt = dense.parse("".join(wrong))
+    collisions += attempt.ok and attempt.value != real and attempt.value in held
+```
+
+`random()` allocation puts `collisions` at or near zero for the same run. Use
+`random()` unless the sequence itself is the point, and confirm the name on a
+record before acting on it either way.
+
 `check=True` uses Damm for a 26-character alphabet and the existing `Luhn` checker
 for other supported even-sized alphabets. Luhn detects every one-symbol in-alphabet
 substitution over those alphabets but not every adjacent transposition. Pass a
@@ -359,33 +394,40 @@ Each library error inherits from `SpokenIdError` and a conventional built-in:
 `parse()` returns `Parsed(ok=False, problem=...)` rather than raising for unreadable
 input.
 
-## Provenance and prior art
+## Credit
 
-SpokenID grew from an identifier library that
-[Ryan Hennig](https://github.com/ryanhennig) wrote at
-[Antara Health](https://github.com/antarahealth). This repository turns that work
-into a standalone Python package and expands its implementation, documentation,
-tests, and tooling. We are confirming the exact history and preferred attribution
-with Ryan before the first release.
+[Ryan Hennig](https://github.com/ryanhennig) wrote the original at
+[Antara Health](https://github.com/antarahealth), and it ran in production for
+six years, issuing identifiers to members in Kenya who read them aloud to
+clinicians over the phone. The alphabet is his, and so are the two rules behind
+it: drop the vowels, which removes almost every accidental word and the whole
+class of accidental profanity that a vowel-carrying alphabet produces, and for
+each pair of characters that get confused with each other, keep one.
 
-The default alphabet is a strict subset of
-[Crockford Base32](https://www.crockford.com/base32.html), but spokenid does not
-encode a number. Crockford decoding accepts `O/o` as `0` and `I/i/L/l` as `1`;
-spokenid uses those aliases and additionally maps `B→8`, `G→6`, `S→5`, and `Z→2`.
-A successful `parse()` exposes every alias use as a repair for confirmation.
+This package is that idea, rewritten as a standalone library.
 
-The Damm implementation is based on H. Michael Damm's primary work: his
-[2004 dissertation](https://doi.org/10.17192/z2004.0516) and the published paper
-[“Totally anti-symmetric quasigroups for all orders n ≠ 2, 6”](https://doi.org/10.1016/j.disc.2006.05.033).
-The bundled order-26 table is generated from the finite-field construction and
-validated in the test suite.
+Two ideas came from elsewhere.
 
-[OpenMRS IDGEN](https://github.com/openmrs/openmrs-module-idgen) is a useful example
-of treating identifier allocation as a database-backed service.
+[Douglas Crockford's Base32](https://www.crockford.com/base32.html) is where
+the repair rule comes from. Drop the letter and keep the digit, and a
+misreading has exactly one answer: an `O` was a zero, an `S` was a five. This
+alphabet is a strict subset of his, so every identifier here is also a valid
+Crockford string. spokenid does not encode numbers, and it maps four aliases
+Crockford does not (`B→8`, `G→6`, `S→5`, `Z→2`).
+
+[H. Michael Damm's](https://doi.org/10.17192/z2004.0516) work on totally
+anti-symmetric quasigroups is the check character. His
+[2006 paper](https://doi.org/10.1016/j.disc.2006.05.033) shows such quasigroups
+exist for every order except 2 and 6; the bundled order-26 table is generated
+from that construction and checked in the test suite.
+
+Two more projects were useful to read.
+[OpenMRS IDGEN](https://github.com/openmrs/openmrs-module-idgen) treats
+identifier allocation as a database-backed service, which is why this library
+takes a `taken` callback rather than assuming a database.
 [Nano ID](https://github.com/ai/nanoid) and its
-[dictionary collection](https://github.com/CyberAP/nanoid-dictionary) are useful
-comparisons for random identifiers and reduced alphabets. These links are context,
-not claims of compatibility or direct lineage.
+[dictionary](https://github.com/CyberAP/nanoid-dictionary) arrived at a
+vowel-free, lookalike-free alphabet independently.
 
 ## Development
 

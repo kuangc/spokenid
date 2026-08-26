@@ -126,6 +126,10 @@ def _canonical_table(
     return table
 
 
+#: The bundled table, validated once at import rather than once per Scheme().
+_VALIDATED_DAMM_26 = _canonical_table(DAMM_26_TABLE, 26)
+
+
 @dataclass(frozen=True, slots=True, init=False)
 class Damm:
     """A Damm check character backed by a validated quasigroup table.
@@ -150,7 +154,11 @@ class Damm:
                     "the bundled Damm table is only for a 26-character alphabet; "
                     "supply a custom table for this one"
                 )
-            table = DAMM_26_TABLE
+            # The bundled table is built once at import and never changes, so
+            # re-checking it on every Scheme() cost about a millisecond for no
+            # benefit. A caller-supplied table is still validated in full.
+            object.__setattr__(self, "table", _VALIDATED_DAMM_26)
+            return
         object.__setattr__(self, "table", _canonical_table(table, len(alphabet)))
 
     def compute(self, body: str) -> str:

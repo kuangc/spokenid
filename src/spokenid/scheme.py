@@ -364,7 +364,12 @@ class Scheme:
         still be matched to the right record and person.
 
         Raises :class:`~spokenid.Unreadable` if ``previous`` is not an
-        identifier, and :class:`~spokenid.SequenceExhausted` at the end.
+        identifier, **or if reading it needed a repair**. ``next("0000-000O")``
+        refuses rather than advancing from ``"0000-0000"``, because guessing
+        which identifier a sequence is at is how two records end up sharing
+        one. Confirm the repaired value with :meth:`parse` and pass that.
+
+        Raises :class:`~spokenid.SequenceExhausted` at the end of the space.
         """
         step = _whole_number(step, name="step", minimum=1)
         read = self.parse(previous)
