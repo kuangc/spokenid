@@ -320,7 +320,7 @@ def test_rejects_nothing(scheme: Scheme, empty: str | None) -> None:
 
 @pytest.mark.parametrize("raw", ["0000-0000", "OOOO-OOOO", "OOOO-OOO1", "nope"])
 def test_parsed_requires_an_explicit_boolean_decision(scheme: Scheme, raw: str) -> None:
-    with pytest.raises(TypeError, match=r"\.status.*\.exact"):
+    with pytest.raises(TypeError, match=r"(?s)\.exact.*\.status.*is not None"):
         bool(scheme.parse(raw))
 
 

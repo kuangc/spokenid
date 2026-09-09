@@ -7,7 +7,7 @@ import secrets
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from fractions import Fraction
-from typing import Literal
+from typing import Literal, NoReturn
 
 from .alphabet import SPOKEN, Alphabet
 from .check import Luhn
@@ -137,8 +137,15 @@ class Parsed:
     problem: str | None = None
     """Why it could not be read, in a sentence you can show someone."""
 
-    def __bool__(self) -> bool:
-        raise TypeError("Parsed has no truth value; check .status or .exact explicitly")
+    def __bool__(self) -> NoReturn:
+        # NoReturn rather than bool: with the honest annotation, mypy flags
+        # `if parsed:` and `parsed or default` as unreachable in caller code,
+        # so the trap is caught statically instead of only at runtime.
+        raise TypeError(
+            "spokenid.Parsed has no truth value: use .exact as a lookup guard, "
+            ".status to branch, .ok for the old 'if parsed' meaning, or "
+            "'is not None' for an optional"
+        )
 
     @property
     def status(self) -> Literal["exact", "confirmation_required", "invalid"]:
