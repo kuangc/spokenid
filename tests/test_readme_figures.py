@@ -160,3 +160,12 @@ def test_the_changelog_has_an_unreleased_section() -> None:
     """
     changelog = (README.parent / "CHANGELOG.md").read_text("utf-8")
     assert "## [Unreleased]" in changelog
+
+
+def test_the_task_id_sizing_paragraph(text: str) -> None:
+    """The small-namespace example is stated in prose as well as in a fence."""
+    tasks = Scheme(length=5, groups=(2, 3))
+    assert f"That gives {tasks.space:,} distinct identifiers" in text
+    assert "start with five symbols" in text
+    assert type(tasks._checker).__name__ == "Damm"
+    assert "one Damm check symbol, grouped as two plus three" in text

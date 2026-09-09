@@ -6,25 +6,19 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-- Add `Parsed.status` (`exact`, `confirmation_required`, or `invalid`) and
-  `Parsed.requires_confirmation` to make lookup decisions explicit.
-- **Breaking:** `bool(parsed)` and `if parsed` now raise `TypeError`. Use
-  `parsed.exact` for lookup guards or branch on `parsed.status`; `parsed.ok`
-  still includes repair candidates that require confirmation.
-- Add `Scheme.is_canonical()` for checking stored text without accepting case,
-  whitespace, or separator normalization.
-- Clarify that `SpaceExhausted` means random collision retries ran out, not that
-  the namespace is necessarily full. Document atomic allocation, optional
-  suggestions, and permanent reservations that survive record deletion.
-
 ## [0.1.0]
 
 - Generate fixed-length identifiers randomly or as serialized sequences, with
-  configurable grouping, separators, alphabets, and check characters.
+  configurable grouping, separators, alphabets, and check characters. Random
+  drawing raises `SpaceExhausted` when its retry budget runs out, which does not
+  by itself mean the namespace is full.
 - Use a validated order-26 Damm checker by default, detecting every one-symbol
   in-alphabet substitution and every adjacent unequal-symbol transposition.
 - Parse case and formatting, preserve the raw location of lookalike repairs, and
-  require callers to distinguish exact input from proposed corrections.
+  require callers to distinguish exact input from proposed corrections:
+  `Parsed.status` is `exact`, `confirmation_required` or `invalid`, `bool(parsed)`
+  raises so a repaired candidate cannot slip past an `if parsed` guard, and
+  `Scheme.is_canonical()` checks stored text without normalizing it.
 - Suggest valid identifiers one substitution, adjacent transposition, insertion, or
   deletion away from invalid input.
 - Report exact identifier-space, blind-guess, and adjacent-transposition properties
