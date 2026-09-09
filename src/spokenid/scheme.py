@@ -7,6 +7,7 @@ import secrets
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from fractions import Fraction
+from typing import Literal
 
 from .alphabet import SPOKEN, Alphabet
 from .check import Luhn
@@ -120,9 +121,15 @@ class Repair:
 
 @dataclass(frozen=True, slots=True)
 class Parsed:
-    """The result of reading something a person typed."""
+    """The result of reading something a person typed.
+
+    Use :attr:`status` to distinguish exact input, a candidate that requires
+    confirmation, and invalid input. Boolean coercion raises :class:`TypeError`
+    so a repaired candidate cannot accidentally pass an ``if parsed`` guard.
+    """
 
     ok: bool
+    """True for a valid value, including one that still needs repair confirmation."""
     value: str | None = None
     """The identifier in its canonical form, or ``None`` if it could not be read."""
     repairs: tuple[Repair, ...] = ()
@@ -131,11 +138,23 @@ class Parsed:
     """Why it could not be read, in a sentence you can show someone."""
 
     def __bool__(self) -> bool:
-        return self.ok
+        raise TypeError("Parsed has no truth value; check .status or .exact explicitly")
+
+    @property
+    def status(self) -> Literal["exact", "confirmation_required", "invalid"]:
+        """The input's validity and whether a repair needs confirmation."""
+        if not self.ok:
+            return "invalid"
+        return "confirmation_required" if self.repairs else "exact"
+
+    @property
+    def requires_confirmation(self) -> bool:
+        """True only for a valid candidate that required lookalike repairs."""
+        return self.ok and bool(self.repairs)
 
     @property
     def exact(self) -> bool:
-        """True when the input was already correct and nothing was reinterpreted."""
+        """True for valid input with no repairs; case and formatting may differ."""
         return self.ok and not self.repairs
 
 
@@ -319,7 +338,8 @@ class Scheme:
             scheme.random(taken=lambda x: Member.objects.filter(id=x).exists())
 
         Raises :class:`~spokenid.SpaceExhausted` after ``attempts`` collisions in
-        a row, rather than looping forever.
+        a row, rather than looping forever. This exhausts the retry budget; it
+        does not establish that every identifier is reserved.
         """
         attempts = _whole_number(attempts, name="attempts", minimum=1)
         chars = self.alphabet.characters
@@ -331,7 +351,9 @@ class Scheme:
                 return candidate
         raise SpaceExhausted(
             f"{attempts} collisions in a row drawing from {self.space:,} "
-            "identifiers. The population has outgrown this scheme. "
+            "identifiers. The retry budget was exhausted; this does not prove "
+            "the space is full. Check the taken callback and reserved population. "
+            "If more capacity is needed: "
             f"{self._capacity_guidance()}"
         )
 
@@ -619,8 +641,28 @@ class Scheme:
         return tuple(ranked if limit is None else ranked[:limit])
 
     def validate(self, raw: object) -> bool:
-        """True when ``raw`` is already a correct identifier, needing no repair."""
+        """True for valid input needing no repair; case and formatting may differ.
+
+        Use :meth:`is_canonical` to check text that is already in storage form.
+        """
         return self.parse(raw).exact
+
+    def is_canonical(self, raw: object) -> bool:
+        """True only for valid text already in this scheme's exact storage form.
+
+        Unlike :meth:`validate`, this rejects differences in case, whitespace,
+        grouping, or separators, as well as repairs and invalid input.
+
+        >>> scheme = Scheme()
+        >>> scheme.validate("7hw2 0j43")
+        True
+        >>> scheme.is_canonical("7hw2 0j43")
+        False
+        >>> scheme.is_canonical("7HW2-0J43")
+        True
+        """
+        parsed = self.parse(raw)
+        return parsed.exact and parsed.value == raw
 
     # ---------------------------------------------------------------- sizing
 

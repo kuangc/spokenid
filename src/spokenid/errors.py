@@ -1,7 +1,8 @@
 """Exceptions raised by spokenid.
 
-Everything this library raises inherits from :class:`SpokenIdError`, and also
-from the built-in you would expect, so existing ``except`` clauses keep working.
+Domain errors inherit from :class:`SpokenIdError` and a conventional built-in,
+so existing ``except`` clauses keep working. Misusing ``Parsed`` in a boolean
+context raises the built-in :class:`TypeError` instead.
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ __all__ = [
 
 
 class SpokenIdError(Exception):
-    """Base class for every error this library raises."""
+    """Base class for the library's domain errors."""
 
 
 class InvalidScheme(SpokenIdError, ValueError):
@@ -33,7 +34,7 @@ class Unreadable(SpokenIdError, ValueError):
 
 
 class SpaceExhausted(SpokenIdError, RuntimeError):
-    """Random drawing kept colliding, so the space is too small for the population."""
+    """Random drawing exhausted its retry budget, not necessarily the space."""
 
 
 class SequenceExhausted(SpokenIdError, RuntimeError):

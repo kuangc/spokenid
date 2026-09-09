@@ -123,8 +123,22 @@ def test_random_retries_past_a_taken_identifier(scheme: Scheme) -> None:
 
 
 def test_random_gives_up_loudly(scheme: Scheme) -> None:
-    with pytest.raises(SpaceExhausted, match="outgrown"):
+    with pytest.raises(SpaceExhausted, match="3 collisions in a row"):
         scheme.random(taken=lambda _: True, attempts=3)
+
+
+def test_random_retry_exhaustion_does_not_claim_the_space_is_full(
+    scheme: Scheme, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Even a single reserved ID can be drawn repeatedly in a mostly empty space.
+    monkeypatch.setattr("spokenid.scheme.secrets.choice", lambda chars: chars[0])
+    reserved = {scheme.first()}
+    with pytest.raises(SpaceExhausted) as caught:
+        scheme.random(taken=reserved.__contains__, attempts=3)
+    message = str(caught.value)
+    assert "3 collisions in a row" in message
+    assert "does not prove the space is full" in message
+    assert "outgrown" not in message
 
 
 @pytest.mark.parametrize("attempts", [True, 1.5, "3", None])
@@ -304,9 +318,80 @@ def test_rejects_nothing(scheme: Scheme, empty: str | None) -> None:
     assert read.problem
 
 
-def test_parsed_is_falsey_when_it_failed(scheme: Scheme) -> None:
-    assert not scheme.parse("nope")
-    assert scheme.parse(scheme.random())
+@pytest.mark.parametrize("raw", ["0000-0000", "OOOO-OOOO", "OOOO-OOO1", "nope"])
+def test_parsed_requires_an_explicit_boolean_decision(scheme: Scheme, raw: str) -> None:
+    with pytest.raises(TypeError, match=r"\.status.*\.exact"):
+        bool(scheme.parse(raw))
+
+
+@pytest.mark.parametrize(
+    ("raw", "status", "exact", "requires_confirmation"),
+    [
+        ("7HW2-0J43", "exact", True, False),
+        (" 7hw2 0j43 ", "exact", True, False),
+        ("7hw2 oj43", "confirmation_required", False, True),
+        ("OOOO-OOO1", "invalid", False, False),
+        ("0000-001W", "invalid", False, False),
+        ("nope", "invalid", False, False),
+        (None, "invalid", False, False),
+    ],
+)
+def test_parse_status_distinguishes_repairs_from_invalid_input(
+    scheme: Scheme, raw: object, status: str, exact: bool, requires_confirmation: bool
+) -> None:
+    parsed = scheme.parse(raw)
+    assert parsed.status == status
+    assert parsed.exact is exact
+    assert parsed.requires_confirmation is requires_confirmation
+    assert parsed.ok is (exact or requires_confirmation)
+
+
+def test_failed_checksum_with_repairs_is_not_a_confirmation_candidate() -> None:
+    parsed = Scheme().parse("OOOO-OOO1")
+    assert parsed.repairs
+    assert parsed.value is None
+    assert parsed.status == "invalid"
+    assert not parsed.requires_confirmation
+
+
+@pytest.mark.parametrize(
+    ("raw", "canonical"),
+    [
+        ("7HW2-0J43", True),
+        ("7hw2-0j43", False),
+        ("7HW20J43", False),
+        ("7HW2 0J43", False),
+        (" 7HW2-0J43 ", False),
+        ("7HW2--0J43", False),
+        ("7hw2 oj43", False),
+        ("0000-001W", False),
+        ("", False),
+        (None, False),
+        (123, False),
+        (b"7HW2-0J43", False),
+    ],
+)
+def test_is_canonical_requires_valid_storage_text(
+    scheme: Scheme, raw: object, canonical: bool
+) -> None:
+    assert scheme.is_canonical(raw) is canonical
+
+
+@pytest.mark.parametrize("separator", ["", "-", "::", " ", "e"])
+@pytest.mark.parametrize("check", [True, False])
+def test_is_canonical_uses_the_configured_format(separator: str, check: bool) -> None:
+    scheme = Scheme(length=5, groups=(2, 3), separator=separator, check=check)
+    for issued in (scheme.first(), scheme.next(scheme.first()), scheme.random()):
+        assert scheme.is_canonical(issued)
+        assert scheme.validate(f" {issued} ")
+        assert not scheme.is_canonical(f" {issued} ")
+
+
+def test_is_canonical_supports_a_custom_alphabet_and_checker() -> None:
+    digits = Alphabet.derive(drop_vowels=False, lookalikes={}, pool="0123456789")
+    scheme = Scheme(alphabet=digits, length=4, groups=(1, 3), separator="::")
+    assert scheme.is_canonical(scheme.next(scheme.first()))
+    assert not scheme.is_canonical("0::001")  # correct format, wrong Luhn check
 
 
 def test_validate_is_strict_about_repairs(scheme: Scheme) -> None:

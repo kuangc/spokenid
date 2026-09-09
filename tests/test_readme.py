@@ -438,7 +438,29 @@ def test_lookup_example_never_queries_a_repaired_identifier() -> None:
     assert confirmation["repairs"]
     assert suggestions == ()
 
+    for invalid in ("0000-001W", "OOOO-OOO1", "nope"):
+        matches, confirmation, suggestions = find(invalid, records)
+        assert not records.queried
+        assert matches == []
+        assert confirmation is None
+        assert suggestions == ()
+
+    matches, confirmation, suggestions = find(
+        "0000-001W", records, offer_suggestions=True
+    )
+    assert not records.queried
+    assert matches == []
+    assert confirmation is None
+    assert "0000-0012" in suggestions
+
     matches, confirmation, suggestions = find(canonical, records)
+    assert records.queried
+    assert matches == [member]
+    assert confirmation is None
+    assert suggestions == ()
+
+    records.queried = False
+    matches, confirmation, suggestions = find(" 7hw2 0j43 ", records)
     assert records.queried
     assert matches == [member]
     assert confirmation is None

@@ -55,6 +55,10 @@ read.value
 # '7HW2-0J43'
 read.exact
 # False
+read.status
+# 'confirmation_required'
+read.requires_confirmation
+# True
 read.repairs
 # (Repair(position=4, typed='o', read_as='0', column=6),)
 
@@ -62,9 +66,21 @@ scheme.parse("7hw2 0j43").exact
 # True
 ```
 
-Case and formatting do not need a correction. A lookalike repair does: require
-explicit confirmation of the canonical value before a lookup or write. The repair
-object says exactly what changed:
+Choose the next action from the parse outcome:
+
+| `parsed.status` | Action |
+|---|---|
+| `exact` | Use `.value` for lookup; case and formatting may have been normalized |
+| `confirmation_required` | Ask the person to confirm `.value` before any record lookup or write |
+| `invalid` | Ask for the identifier again; there is no valid `.value` to confirm |
+
+`parsed.ok` includes repair candidates, so it is not a safe lookup guard. Use
+`.exact` or `.status`. `if parsed` and `bool(parsed)` raise `TypeError` to require
+that choice explicitly. Invalid input can carry repair details when its check
+character still fails; `.requires_confirmation` is false in that case.
+
+Case and formatting do not need confirmation. A lookalike repair needs
+explicit confirmation. The repair object says exactly what changed:
 
 ```python
 for repair in read.repairs:
@@ -82,27 +98,29 @@ includes whitespace and separators. `Repair.position` starts at zero in the
 normalized identifier, so it is useful for slicing. `Repair.typed` preserves the raw
 character.
 
-This complete lookup example never queries a repaired value:
+This lookup example never queries a repaired or invalid value. Suggestions are
+optional and disabled by default:
 
 ```python
-def find(typed, records):
+def find(typed, records, *, offer_suggestions=False):
     """Return (matches, confirmation prompt, suggestions)."""
     parsed = scheme.parse(typed)
     if parsed.exact:
         matches = [records[parsed.value]] if parsed.value in records else []
         return matches, None, ()
-    if parsed.ok:
+    if parsed.requires_confirmation:
         confirmation = {
             "prompt": f"Confirm {parsed.value}, then submit it again",
             "repairs": parsed.repairs,
         }
         return [], confirmation, ()
-    return [], None, scheme.suggest(typed)
+    suggestions = scheme.suggest(typed) if offer_suggestions else ()
+    return [], None, suggestions
 ```
 
-When input is invalid, `suggest()` normalizes formatting and configured aliases, then
-returns valid identifiers one supported symbol edit away. Suggestions are prompts to
-confirm, not records to open:
+If you offer suggestions for invalid input, `suggest()` normalizes formatting and
+configured aliases, then returns valid identifiers one supported symbol edit away.
+Suggestions are prompts to confirm, not records to open:
 
 ```python
 bad = scheme.parse("0000-001W")
@@ -117,6 +135,11 @@ identifiers are close together. Show the candidate, read it back, and require a 
 exact submission before querying it.
 
 ## Issue identifiers safely
+
+An application can allocate, retry, store, and display identifiers automatically.
+Confirmation is needed only when interpreting a supplied identifier requires a
+repair (or someone chooses a suggestion). Check that boundary before reading a
+record, even for a read-only preview. Generated identifiers need no approval step.
 
 ### Random issuance
 
@@ -133,9 +156,20 @@ candidate not in issued
 
 The callback is convenience, not an atomic uniqueness guarantee: another writer can
 insert the same candidate after the callback returns. Put a unique index on the
-canonical identifier, attempt the insert, and retry after a uniqueness conflict.
+canonical identifier, attempt the insert, and retry only when that identifier's
+unique constraint conflicts. Do not treat every integrity error as a collision.
 After ten collisions in a row, the default call raises `SpaceExhausted` rather than
-looping forever.
+looping forever. That means the retry budget was exhausted; it does not prove the
+identifier space is full. Check the callback, reserved population, and retry policy
+before changing formats.
+
+For database-backed allocation, keep the record and its identifier assignment in
+one transaction. Return an existing assignment if the record already has one. If
+another writer assigns the same record first, return that stored identifier rather
+than replacing it. After an identifier collision, draw another candidate within a
+bounded retry loop. Use your database's conflict handling or roll back a failed
+insert to a savepoint before retrying; do not continue an aborted transaction. Roll
+back the whole operation if allocation fails so no partial record is committed.
 
 ### Sequential issuance
 
@@ -285,6 +319,17 @@ phonetic("4K", words={"K": "Kilimanjaro"})
 ## Storage and sizing
 
 Store the canonical text returned by issuance or by an exact parse.
+Use `is_canonical()` to validate already-stored or imported text without silently
+normalizing it. `validate()` accepts harmless formatting differences:
+
+```python
+scheme.validate("7hw2 0j43")
+# True
+scheme.is_canonical("7hw2 0j43")
+# False
+scheme.is_canonical("7HW2-0J43")
+# True
+```
 
 | Concern | Recommendation |
 |---|---|
@@ -292,7 +337,27 @@ Store the canonical text returned by issuance or by an exact parse.
 | Uniqueness | Enforce a unique index in the database |
 | Lookup | Query `.value` only when `.exact` is true |
 | Repairs | Confirm, then resubmit the canonical value before lookup or storage |
-| Case | Store uppercase canonical output |
+| Format | Store canonical output unchanged |
+
+For permanent references, keep an alias ledger or tombstone when a record is
+deleted or archived. Every issued identifier must remain reserved, including old
+aliases after a format change. Do not cascade-delete those reservations or reuse
+the underlying record identity for a different record: an old spoken reference
+must never resolve to someone else's record. Deleted records can resolve as gone.
+
+Size a permanent namespace for **all identifiers ever reserved**, not just active
+records. A small single-user task system can start with five symbols, including
+one Damm check symbol, grouped as two plus three:
+
+```python
+task_ids = Scheme(length=5, groups=(2, 3))
+task_ids.space
+# 456976
+```
+
+That gives 456,976 distinct identifiers. Random allocation still needs atomic
+collision retries, which become more frequent as reservations accumulate. Deleting
+tasks does not free capacity when identifiers are permanent.
 
 `scheme.length` is 8 and excludes the separator; `len(scheme.random())` is 9 and
 includes it. With the check character, the default carries seven information symbols.
@@ -381,7 +446,7 @@ Public names:
 | `SpaceExhausted` / `SequenceExhausted` / `Unreadable` | Issuance and reading errors |
 | `__version__` | Installed package version |
 
-Each library error inherits from `SpokenIdError` and a conventional built-in:
+The domain errors inherit from `SpokenIdError` and a conventional built-in:
 
 | Situation | Error | Also a |
 |---|---|---|
@@ -392,7 +457,8 @@ Each library error inherits from `SpokenIdError` and a conventional built-in:
 | Unreadable previous value | `Unreadable` | `ValueError` |
 
 `parse()` returns `Parsed(ok=False, problem=...)` rather than raising for unreadable
-input.
+input. Boolean coercion of a `Parsed` object raises the built-in `TypeError`, not a
+`SpokenIdError`; inspect its explicit outcome instead.
 
 ## Credit
 

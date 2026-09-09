@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from spokenid import SPOKEN, Alphabet, Luhn, Scheme
+from spokenid import SPOKEN, Alphabet, Luhn, Scheme, SpaceExhausted
 
 README = Path(__file__).resolve().parent.parent / "README.md"
 
@@ -39,7 +39,7 @@ def test_the_number_of_collisions_before_giving_up(text: str) -> None:
         attempts += 1
         return True
 
-    with pytest.raises(Exception, match="outgrown"):
+    with pytest.raises(SpaceExhausted, match="10 collisions in a row"):
         scheme.random(taken=taken)
     assert attempts == 10
     assert "After ten collisions in a row" in text

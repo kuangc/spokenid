@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+- Add `Parsed.status` (`exact`, `confirmation_required`, or `invalid`) and
+  `Parsed.requires_confirmation` to make lookup decisions explicit.
+- **Breaking:** `bool(parsed)` and `if parsed` now raise `TypeError`. Use
+  `parsed.exact` for lookup guards or branch on `parsed.status`; `parsed.ok`
+  still includes repair candidates that require confirmation.
+- Add `Scheme.is_canonical()` for checking stored text without accepting case,
+  whitespace, or separator normalization.
+- Clarify that `SpaceExhausted` means random collision retries ran out, not that
+  the namespace is necessarily full. Document atomic allocation, optional
+  suggestions, and permanent reservations that survive record deletion.
+
 ## [0.1.0]
 
 - Generate fixed-length identifiers randomly or as serialized sequences, with
