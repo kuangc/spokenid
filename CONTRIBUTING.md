@@ -45,6 +45,13 @@ belong in the deterministic `benchmarks/evaluate.py` model and its
 Say what you expected, what happened, and the shortest code that shows it. If
 Hypothesis found it for you, include the `@seed(...)` line it printed.
 
+## Design decisions
+
+Decisions that would otherwise have to be rediscovered from the code are
+recorded in [docs/adr](https://github.com/kuangc/spokenid/blob/main/docs/adr).
+Add one when a change turns on a judgement call rather than on a fact; leave the
+existing records alone and supersede them with a new one.
+
 ## Releasing
 
 See [RELEASING.md](https://github.com/kuangc/spokenid/blob/main/RELEASING.md).
